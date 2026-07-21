@@ -13,4 +13,4 @@ var size    = Vector2i.ZERO   # Size in world coordinates
 # Camera only looks at certain visibility layer depending on player's
 # world_z or w_index
 
-# Dynamically hand out y-sory origin as the player is parsed
+# Dynamically hand out y-sort origin as the player is parsed
