@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://cqlji0wiqpi35"]
+
+[ext_resource type="ArrayMesh" uid="uid://dbvx0xn2btgx8" path="res://assets/3d/slab_5.obj" id="1_1mb4u"]
+[ext_resource type="Texture2D" uid="uid://q6xfqjcp0ckp" path="res://assets/2d/floor_dev.png" id="2_fc58i"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_fc58i"]
+transparency = 1
+albedo_color = Color(1, 1, 1, 0)
+texture_filter = 0
+billboard_mode = 1
+
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_dcw56"]
+data = PackedVector3Array(12, -12, 12, -12, -12, 12, 12, 12, 12, 12, 12, 12, -12, -12, 12, -12, 12, 12, 12, -12, 12, -12, -12, -12, -12, -12, 12, -12, -12, 12, -12, -12, -12, -12, 12, 12, 12, 12, -12, 12, -12, 12, 12, 12, 12, 12, 12, 12, -12, 12, 12, 12, 12, -12, 12, -12, -12, -12, -12, -12, 12, -12, 12, 12, -12, -12, 12, -12, 12, 12, 12, -12, -12, 12, 12, -12, -12, -12, -12, 12, -12, 12, -12, -12, -12, 12, -12, -12, -12, -12, 12, 12, -12, -12, 12, 12, -12, 12, -12, 12, 12, -12, -12, 12, -12, 12, -12, -12)
+
+[sub_resource type="QuadMesh" id="QuadMesh_mokcb"]
+size = Vector2(33.94, 16.97)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dcw56"]
+transparency = 2
+alpha_scissor_threshold = 0.5
+alpha_antialiasing_mode = 0
+albedo_texture = ExtResource("2_fc58i")
+
+[node name="IsoTile" type="Node3D" unique_id=167620337]
+
+[node name="Mesh3D" type="MeshInstance3D" parent="." unique_id=550721932]
+mesh = ExtResource("1_1mb4u")
+surface_material_override/0 = SubResource("StandardMaterial3D_fc58i")
+
+[node name="StaticBody" type="StaticBody3D" parent="Mesh3D" unique_id=25155640]
+
+[node name="Collision" type="CollisionShape3D" parent="Mesh3D/StaticBody" unique_id=1373250347]
+shape = SubResource("ConcavePolygonShape3D_dcw56")
+
+[node name="Sprite" type="MeshInstance3D" parent="." unique_id=1222837992]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3.515, 0)
+mesh = SubResource("QuadMesh_mokcb")
+surface_material_override/0 = SubResource("StandardMaterial3D_dcw56")

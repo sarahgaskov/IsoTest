@@ -11,9 +11,17 @@ config_version=5
 [application]
 
 config/name="IsoTest"
-run/main_scene="uid://jmw1qcbjuvrh"
+run/main_scene="uid://bbrvdbpscgh7g"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=480
+window/size/viewport_height=270
+window/size/mode=3
+window/stretch/mode="viewport"
+window/stretch/scale_mode="integer"
 
 [physics]
 
@@ -21,4 +29,5 @@ config/icon="res://icon.svg"
 
 [rendering]
 
+textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"

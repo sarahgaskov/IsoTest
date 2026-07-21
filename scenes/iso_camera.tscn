@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://vju83aq3kv7x"]
+
+[ext_resource type="Script" uid="uid://bcrf34ncasdmm" path="res://scripts/iso_camera.gd" id="1_spi4d"]
+
+[node name="IsoCamera" type="Node3D" unique_id=922242376]
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1597871957]
+projection = 1
+script = ExtResource("1_spi4d")
