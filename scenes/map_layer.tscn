@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://bciiv7mpua5ff"]
+
+[ext_resource type="Script" uid="uid://ydceagstrin6" path="res://scripts/map_layer.gd" id="1_iex7o"]
+[ext_resource type="TileSet" uid="uid://c5v5yrb525uh1" path="res://scenes/tileset_floor.tres" id="2_7wght"]
+[ext_resource type="TileSet" uid="uid://cfqwamcsdwrxm" path="res://scenes/tileset_block.tres" id="3_q2m4d"]
+
+[node name="MapLayer" type="Node2D" unique_id=1928630398]
+y_sort_enabled = true
+script = ExtResource("1_iex7o")
+
+[node name="Floor" type="TileMapLayer" parent="." unique_id=1668920725]
+tile_set = ExtResource("2_7wght")
+
+[node name="Floor_1" type="TileMapLayer" parent="." unique_id=1149341514]
+tile_set = ExtResource("2_7wght")
+
+[node name="Floor_2" type="TileMapLayer" parent="." unique_id=716155987]
+tile_set = ExtResource("2_7wght")
+
+[node name="Block" type="TileMapLayer" parent="." unique_id=2092039469]
+tile_set = ExtResource("3_q2m4d")
+
+[node name="Block_A" type="TileMapLayer" parent="." unique_id=350718732]
