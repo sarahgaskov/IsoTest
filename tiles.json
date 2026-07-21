@@ -1,8 +1,9 @@
 {
-	"tilesheet": "res://assets/2d/floor_dev.png",
+	"tilesheets": ["res://assets/2d/floor_dev.png"],
 	"tiles": [
 		{
 			"name": "slab_5",
+			"sheet": 0,
 			"region": [0, 0, 64, 64],
 			"mesh": "res://assets/3d/slab_5.obj",
 			"offset_px": [0, 0]

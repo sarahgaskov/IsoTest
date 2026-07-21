@@ -6,34 +6,14 @@
 atlas = ExtResource("1_d52ls")
 region = Rect2(0, 0, 64, 64)
 
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_vt6s1"]
-transparency = 2
-alpha_scissor_threshold = 0.5
-alpha_antialiasing_mode = 0
-cull_mode = 2
-shading_mode = 0
-albedo_texture = SubResource("AtlasTexture_d52ls")
-texture_filter = 0
-billboard_mode = 1
-billboard_keep_scale = true
-
-[sub_resource type="QuadMesh" id="QuadMesh_8nvxf"]
-material = SubResource("StandardMaterial3D_vt6s1")
-size = Vector2(45.254833, 45.254833)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_oempc"]
-atlas = ExtResource("1_d52ls")
-region = Rect2(0, 0, 64, 64)
-
-[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_0mnh7"]
+[sub_resource type="ConcavePolygonShape3D" id="ConcavePolygonShape3D_vt6s1"]
 data = PackedVector3Array(12, -12, 12, -12, -12, 12, 12, 12, 12, 12, 12, 12, -12, -12, 12, -12, 12, 12, 12, -12, 12, -12, -12, -12, -12, -12, 12, -12, -12, 12, -12, -12, -12, -12, 12, 12, 12, 12, -12, 12, -12, 12, 12, 12, 12, 12, 12, 12, -12, 12, 12, 12, 12, -12, 12, -12, -12, -12, -12, -12, 12, -12, 12, 12, -12, -12, 12, -12, 12, 12, 12, -12, -12, 12, 12, -12, -12, -12, -12, 12, -12, 12, -12, -12, -12, 12, -12, -12, -12, -12, 12, 12, -12, -12, 12, 12, -12, 12, -12, 12, 12, -12, -12, 12, -12, 12, -12, -12)
 
 [resource]
 item/0/name = "slab_5"
-item/0/mesh = SubResource("QuadMesh_8nvxf")
 item/0/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 item/0/mesh_cast_shadow = 1
-item/0/shapes = [SubResource("ConcavePolygonShape3D_0mnh7"), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)]
+item/0/shapes = [SubResource("ConcavePolygonShape3D_vt6s1"), Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)]
 item/0/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 item/0/navigation_layers = 1
-item/0/preview = SubResource("AtlasTexture_oempc")
+item/0/preview = SubResource("AtlasTexture_d52ls")
