@@ -49,27 +49,6 @@ static func _bake(mask_path: String, regions: Array) -> Array:
 		tiles.append({"region": [rect.size.x, rect.size.y], "edges": edges})
 	return tiles
 
-# The mask as painted on disk, for pixel-exact analysis (bake/rebuild time).
-static func raw_mask(sheet_path: String) -> Image:
-	var p = _sibling(sheet_path, "_o.png")
-	if not FileAccess.file_exists(p): return null
-	return Image.load_from_file(ProjectSettings.globalize_path(p))
-
-# One tile region's mask pixels grouped by direction, in region-local coords.
-static func region_pixels(img: Image, region: Rect2i) -> Array:
-	var out := []
-	for d in DIR_COLORS.size(): out.append([])
-	if img == null: return out
-	var sub = img.get_region(region)
-	for y in sub.get_height():
-		for x in sub.get_width():
-			var c = sub.get_pixel(x, y)
-			for d in DIR_COLORS.size():
-				if c.is_equal_approx(DIR_COLORS[d]):
-					out[d].append(Vector2(x, y))
-					break
-	return out
-
 static func _pixels(img: Image, col: Color) -> Array:
 	var out = []
 	for y in img.get_height():

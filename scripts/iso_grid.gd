@@ -38,7 +38,7 @@ const OCC_SHADER = preload("res://assets/shaders/occlusion.gdshader")
 
 var _wire_hash = 0
 var _occ_hash = 0
-var _types := {}          # cell item id -> {mesh, mat, edges, out, present}
+var _types := {}          # cell item id -> {mesh, mat, out, present}
 var _blank_mask: ImageTexture
 
 func _ready() -> void:
@@ -53,7 +53,6 @@ func _ready() -> void:
 # built lazily by _refresh_sprites, so only placed tiles pay for it.
 func _setup() -> void:
 	_types = {}
-	OcclusionContact.clear()
 	if not show_3d: _mute_library()
 	_occ_hash = 0
 	_refresh_sprites()
@@ -87,11 +86,9 @@ func rebuild() -> void:
 	var sheets: Array = paths.map(func(p): return load(p) as Texture2D)
 	var lib = _fresh_library()
 
-	# GridMap keeps the collision and the palette preview; the sprites
-	# themselves are drawn by the occlusion layer (see _refresh_sprites),
-	# so placed cells carry a mesh only in the 3D debug view.
 	for id in data.tiles.size():
 		var tile: Dictionary = data.tiles[id]
+		
 		lib.create_item(id)
 		lib.set_item_name(id, tile.name)
 		lib.set_item_mesh(id, _debug_mesh(tile) if show_3d else null)
@@ -101,7 +98,6 @@ func rebuild() -> void:
 	mesh_library = lib
 
 	_types = {}
-	OcclusionContact.clear()
 	_occ_hash = 0
 	_refresh_sprites()
 
@@ -114,8 +110,7 @@ func rebake() -> void:
 	rebuild()
 
 # Build the render type for each requested tile id into _types (additive, so
-# a rebuild only pays for what is placed). Rasterizing a mesh and walking its
-# contact probes is the pipeline's one heavy step, so unused tiles never do it.
+# a rebuild only pays for what is placed).
 func _build_types(want: Array) -> void:
 	if want.is_empty(): return
 	var data = JSON.parse_string(FileAccess.get_file_as_string(config))
@@ -136,70 +131,26 @@ func _build_types(want: Array) -> void:
 		var baked = OcclusionMaskBaker.ensure(paths[si], all)
 		var sheet_img: Image = (load(paths[si]) as Texture2D).get_image()
 		var mask_img = _load_mask(paths[si])
-		var raw_img = OcclusionMaskBaker.raw_mask(paths[si])
 		for id in ids:
 			_types[id] = _make_type(
-				data.tiles[id], sheet_img, mask_img, raw_img,
+				data.tiles[id], sheet_img, mask_img,
 				baked[pos[id]] if pos[id] < baked.size() else {})
 
-func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: Dictionary) -> Dictionary:
+func _make_type(tile: Dictionary, sheet: Image, mask: Image, baked: Dictionary) -> Dictionary:
 	var region = _region(tile)
-	var size = Vector2i(region.size)
-	var off: Array = tile.get("offset_px", [0, 0])
-	var offset = Vector2(off[0], off[1])
-	var depth = MeshDepth.rasterize(_faces(tile), size, offset)
-	var edges: Array = baked.get("edges", _zeros(Vector4.ZERO)).duplicate()
 	var out = baked.get("out", _zeros(Vector2.ZERO))
 	var present = baked.get("present", 0)
-	var region_px = OcclusionMaskBaker.region_pixels(raw if raw else mask, Rect2i(region))
-
-	# Contact probes: walk every mask pixel of each edge inward to this tile's
-	# own silhouette, then collapse the pixels that share a silhouette point
-	# into one probe [t_lo, t_hi, s.x, s.y, front depth]. t is the pixel's
-	# position along the baked mask edge — the projection the shader redoes —
-	# so a fully-contacted band erases across its whole painted length; the
-	# collapse keeps the depth test O(silhouette) not O(mask pixels).
-	var probes := []
-	for d in 6:
-		var e0 = Vector2(edges[d].x, edges[d].y)
-		var ev = Vector2(edges[d].z, edges[d].w) - e0
-		var groups := {}
-		if (present & (1 << d)) != 0 and ev.length_squared() > 1e-6:
-			var o: Vector2 = out[d]
-			for p in region_px[d]:
-				var c = p + Vector2(0.5, 0.5)
-				var s = MeshDepth.first_covered(depth, size, c, -o, MeshDepth.MAX_WALK)
-				if s == null: continue
-				var t = clampf((c / Vector2(size) - e0).dot(ev) / ev.length_squared(), 0.0, 1.0)
-				var key = Vector2i(s)
-				if groups.has(key):
-					groups[key].x = minf(groups[key].x, t)
-					groups[key].y = maxf(groups[key].y, t)
-				else:
-					groups[key] = Vector2(t, t)
-		var list = PackedFloat32Array()
-		for key in groups:
-			list.append_array([groups[key].x, groups[key].y, key.x + 0.5, key.y + 0.5,
-				MeshDepth.at(depth, size, Vector2(key) + Vector2(0.5, 0.5)).x])
-		probes.append(list)
 
 	var mat = ShaderMaterial.new()
 	mat.shader = OCC_SHADER
 	mat.set_shader_parameter("albedo_tex", _crop(sheet, region))
 	mat.set_shader_parameter("mask_tex", _crop(mask, region) if mask else _fallback_mask())
-	mat.set_shader_parameter("edges", edges)
 
 	return {
 		"mesh": _quad(tile),
 		"mat": mat,
-		"edges": edges,
 		"out": out,
 		"present": present,
-		"depth": depth,
-		"region_size": size,
-		"region_px": region_px,
-		"origin": MeshDepth.origin(size, offset),
-		"probes": probes,
 	}
 
 # For shader sampling (tolerant to import compression, works in exports too).
@@ -249,7 +200,7 @@ func _debug_mesh(tile: Dictionary) -> ArrayMesh:
 			colors[key] = Color.from_hsv(colors.size() * 0.61803, 0.65, 1.0)
 		st.set_color(colors[key])
 		for j in range(3):
-			st.add_vertex(faces[i + j])
+			st.add_vertex(faces[i + j] * Vector3(1.0, Iso.RISE, 1.0)) # scale to fit tile size
 	st.set_material(_debug_material())
 	return st.commit()
 
@@ -314,12 +265,7 @@ func _refresh_sprites() -> void:
 
 # Detect where the cell touches neighbors, then hand the result to the shader.
 func _apply_occlusion(mi: MeshInstance3D, cell: Vector3i) -> void:
-	var contact = OcclusionContact.resolve(self, cell, _types)
-	var s: Array = contact.spans
-	mi.set_instance_shader_parameter("neighbors", contact.neighbors)
-	mi.set_instance_shader_parameter("range01", Vector4(s[0].x, s[0].y, s[1].x, s[1].y))
-	mi.set_instance_shader_parameter("range23", Vector4(s[2].x, s[2].y, s[3].x, s[3].y))
-	mi.set_instance_shader_parameter("range45", Vector4(s[4].x, s[4].y, s[5].x, s[5].y))
+	mi.set_instance_shader_parameter("neighbors", OcclusionContact.resolve(self, cell, _types))
 
 func _sprite_layer() -> Node3D:
 	var layer = get_node_or_null(^"SpriteLayer") as Node3D
@@ -360,11 +306,6 @@ func _region(tile: Dictionary) -> Rect2:
 
 # = IN-EDITOR Helpers =
 
-# Snap the editor viewport to the game's isometric view: switch it to
-# orthogonal through its own view menu, then move its camera; the editor
-# adopts an externally moved camera into its orbit cursor (pivot included),
-# so navigation keeps working. In ortho the pivot is derived as
-# origin - basis.z * (far - near) / 2, hence the camera position below.
 func snap_editor_view() -> void:
 	if not Engine.is_editor_hint():
 		return
