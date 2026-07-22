@@ -132,14 +132,7 @@ Constant-time span lookup / coverage test at a pixel position.
 ### `first_covered(tile, size, from, dir, steps) -> Variant`
 Walks from a position in 1 px steps until it finds a covered pixel; `null` when
 none within `steps`. Used to cross the border between the (wider) mask wedge
-and the mesh silhouette.
-
-### `silhouette_edge(tile, size, wedge, outward) -> Variant`
-The *real* silhouette segment under one edge's mask wedge: every wedge pixel is
-walked inward (up to `MAX_WALK`) to the mesh, and the two farthest-apart hits
-are the endpoints. Parametrising edges by the mesh instead of the mask matters
-because the mask hexagon fills the full region while the mesh is narrower —
-mask-edge endpoints would leave `t` gaps at full contact.
+and the mesh silhouette, and by `IsoGrid` to build each edge's contact probes.
 
 ---
 
@@ -151,15 +144,17 @@ are drawn by a separate layer of one billboard per cell** so each can carry its
 own neighbour data.
 
 ### `_setup()`
-Called from `_ready` (runtime-safe: never writes to disk). Reads the config,
-builds the render types, mutes the `GridMap`'s own meshes, and refreshes the
-sprite layer. This is what makes the effect appear on scene load without pressing
-a button.
+Called from `_ready` (runtime-safe: never writes to disk). Clears the type
+cache, mutes the `GridMap`'s own meshes, and refreshes the sprite layer — which
+builds the render types **lazily**, only for the tiles actually placed. This is
+what makes the effect appear on scene load without pressing a button, and keeps
+start-up proportional to the tiles in the scene rather than the whole config.
 
 ### `rebuild()`
 The editor "Rebuild tiles" button. Rewrites and saves the `MeshLibrary`
 (collision shapes + palette previews; placed meshes only in 3D-debug mode), then
-does the same type/sprite setup as `_setup`. Writes to disk, so editor-only.
+clears the types and refreshes so they rebuild lazily. Writes to disk, so
+editor-only.
 
 ### `rebake()`
 The "Rebake occlusion" button. Deletes the cache JSONs so the next bake is
@@ -171,21 +166,34 @@ previews) so the `GridMap` draws only collision and the sprite layer owns the
 visuals — otherwise the tile would be drawn twice. Does not save, so the file on
 disk is untouched.
 
-### `_build_types(data, paths, sheets)`
-For each tilesheet, gathers the tiles that use it, calls
-`OcclusionMaskBaker.ensure` once for the whole sheet, and builds a render type
-per tile via `_make_type`. `_types` is keyed by cell item id.
+### `_build_types(want)`
+Builds a render type via `_make_type` for each requested tile id, **additively**
+into `_types` (a rebuild only pays for the tiles placed). Calls
+`OcclusionMaskBaker.ensure` once per sheet with all its regions (so the md5
+cache stays valid) but only builds the wanted ids. Rasterizing a mesh and
+walking its contact probes is the pipeline's one heavy step, so unused tiles
+never do it. `_refresh_sprites` calls this with the ids missing for the cells on
+the map.
+
+### `_faces(tile) -> PackedVector3Array`
+The tile's mesh triangles rotated to its cardinal `"rot"` (`n/e/s/w`, default
+`n`) — one shared `.obj` serves all four facings. `_make_type`'s rasteriser,
+`_collision`, and the 3D debug view all consume this, so rotation is data, not a
+duplicated model.
 
 ### `_make_type(tile, sheet, mask, raw, baked) -> Dictionary`
 Builds everything one tile type needs:
 - `mesh` — its billboard quad (`_quad`).
 - `depth`, `region_size`, `origin` — the type's rasterized `MeshDepth` tile and
-  its pixel-space frame.
+  its pixel-space frame (`_faces` supplies the rotated triangles).
 - `region_px` — mask pixels grouped by direction (from the raw mask, so colours
   are exact).
-- `edges` — each present edge re-parametrised by `MeshDepth.silhouette_edge`
-  (oriented like the baked edge; the baked mask edge stays as fallback when no
-  mesh lies under a wedge).
+- `edges` — the baked mask edge per direction, used to parametrise `t` (a fully
+  painted band therefore spans `t` 0→1).
+- `probes` — per edge, one `[t_lo, t_hi, s.x, s.y, depth]` per distinct
+  silhouette point: every mask pixel is walked inward to the mesh, then pixels
+  sharing a silhouette point collapse into one probe carrying their `t` range.
+  This is what `OcclusionContact._span` consumes.
 - `mat` — a `ShaderMaterial` on `occlusion.gdshader`, given the cropped sprite
   (`albedo_tex`), the cropped mask (`mask_tex`, or a 1×1 black fallback), and
   `edges`.
@@ -240,12 +248,20 @@ billboard.
 geometry over the grid's cells and baked tile types, with no rendering and no
 state beyond a per-pair memo. All `static`.
 
-Its knobs are physical: `SLOP_PX` (leeway for the small gap between the mesh
-silhouette and the painted art), `DEPTH_TOL` (world-unit slack for "surfaces
-touch"), `SNAP` (spans this close to an edge end reach it exactly), `GAP_PX`
-(runs closer than this merge) and `MIN_SPAN_PX` (a run must outlast the halo a
-corner touch leaves around a vertex — anything shorter is a corner *meeting*,
-not surface contact, and keeps its ink).
+Its knobs are physical: `SLOP_PX` (how far outward to probe for the neighbour's
+surface), `DEPTH_TOL` (world-unit slack for raster jitter where two surfaces
+meet — kept tight, so a neighbour whose surface *recedes* below the current
+tile's, like a slope dropping away behind a flat top, does **not** count as
+continuing the plane and the outline survives as a silhouette), `GAP` (runs
+closer than this merge) and `MIN_SPAN` (a merged run must be longer than the
+halo a mere corner touch leaves around a vertex — anything shorter is a corner
+*meeting*, not surface contact, and keeps its ink).
+
+The unit of work is a **probe**: one silhouette point of an edge, carrying the
+`[t_lo, t_hi]` range of mask pixels that walk to it and the tile's front depth
+there (precomputed once per type in `IsoGrid._make_type`, packed as
+`[t_lo, t_hi, s.x, s.y, depth]`). A probe that contacts erases its whole `t`
+range, so a fully-backed edge erases across its entire painted length.
 
 ### `resolve(grid, cell, types) -> Dictionary`
 The entry point. For the given cell it returns
@@ -254,34 +270,38 @@ and the `[t0,t1]` contact span along each. Every one of the 26 surrounding
 occupied cells contributes per-direction runs (`_contact`), which are then
 combined per edge by `_merge`.
 
-### `_merge(runs, edge, size) -> Variant`
-Unions overlapping / near-touching runs along one edge and keeps the longest;
-`null` when even that is shorter than `MIN_SPAN_PX`. A plain bounding-interval
-union is wrong here: two point-touches at opposite corners would bridge into a
-full-edge erase.
+### `_merge(runs) -> Variant`
+Unions overlapping / near-touching runs (within `GAP`) along one edge and keeps
+the longest; `null` when even that is shorter than `MIN_SPAN`. A plain
+bounding-interval union is wrong here: two point-touches at opposite corners
+would bridge into a full-edge erase.
 
 ### `_contact(grid, a_id, b_id, a, b, off) -> Array`
-Per-direction contact of one type pair at one cell offset. Projects the offset
-into screen pixels and a depth shift once, then runs `_span` per direction.
-Depends only on the two types and the offset, so it is memoised in `_cache`
-(cleared by `clear()` on every rebuild).
+Per-direction contact runs of one type pair at one cell offset. Projects the
+offset into screen pixels and a depth shift, then runs `_span` per direction.
+Because tiles are `UNIT` tall while cells are shorter, stacked layers overlap;
+for vertical offsets the pair is evaluated at both the true placement and the
+overlap-corrected height, so a surface continuing across a layer boundary still
+registers. Depends only on the two types and the offset, so memoised in
+`_cache` (cleared by `clear()` on every rebuild).
 
 ### `_span(a, b, d, screen, shift) -> Variant`
-The depth-contact test for one edge, per mask wedge pixel:
-1. **Outward gate** — the neighbour must sit on the edge's outward side
-   (`screen · out[d] > 0`), else corner pixels bleed contact from neighbours
-   across adjacent edges.
-2. Walk the pixel **inward** to this tile's own silhouette point (skip if the
-   wedge pixel has no mesh under it); its front depth is the surface being
-   outlined.
-3. Sample the neighbour's depth tile at that point (shifted into its frame,
-   with up to `SLOP_PX` outward slack); no coverage means the outward side is
-   exposed — keep the ink.
-4. **Contact** iff the surface depth is within `DEPTH_TOL` of the neighbour's
-   front **or back** surface — near a *surface*, not merely inside the solid,
-   which would over-match wrong-direction neighbours.
-Contact pixels accumulate `t` along the mesh-silhouette edge into a min/max
-run, whose ends snap to 0/1 within `SNAP`.
+The depth-contact test for one edge. For each probe of edge `d`:
+1. Sample the neighbour's depth tile just **outward** of the probe's silhouette
+   point (shifted into the neighbour's frame, up to `SLOP_PX` out). No coverage
+   means the outward side is **exposed** — the probe's `t` range is recorded as
+   exposed and the ink is kept there.
+2. **Contact** iff the tile's surface depth is within `DEPTH_TOL` of the
+   neighbour's front **or back** surface — near a *surface*, not merely inside
+   the solid, which would over-match wrong-direction neighbours.
+A contacting probe contributes its `[t_lo, t_hi]`; the min/max over all
+contacting probes is the run. That run then **reaches the edge end** across
+probes it fell short of — corner rounding, or a neighbour that covers but
+mis-reads by a pixel of jitter — *unless* an exposed probe sits in the gap. An
+exposed gap is real silhouette (a neighbour too short or absent to back the ink,
+e.g. a tall tile rising above a shorter one), so the outline is kept there. This
+is what distinguishes "the whole edge is backed, snap it closed" from "the top
+of this edge stands above its neighbour, keep it".
 
 ### `_zero_spans() -> Array`
 Six `Vector2.ZERO`s — the default "no contact" spans.
@@ -292,11 +312,13 @@ memoised in a static var.
 
 ### Verifying changes
 `tools/occ_diag.gd` (run headless:
-`godot --headless --path <project> --script res://tools/occ_diag.gd`) checks
-the rasterized extents, prints every per-offset span table, simulates the
-shader per pixel for every cell in `scenes/level.tscn`, and composites the
-whole scene to PNGs (`tools/diag_*.png`) — diffing both against the
-all-or-nothing baseline. For the current level the result is pixel-identical.
+`godot --headless --path <project> --script res://tools/occ_diag.gd`) rebuilds
+the original all-cube terrace, checks the rasterized extents, prints every
+per-offset span table, simulates the shader per pixel for every cell, and
+composites the scene to PNGs — diffing both against the all-or-nothing baseline
+(pixel-identical). `tools/tile_fit.gd` checks every tile's mesh↔art fit and
+composites a demo layout; `tools/repro.gd` renders mixed ramps / pyramids /
+plates for eyeballing.
 
 ---
 

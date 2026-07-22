@@ -11,11 +11,13 @@ class_name OcclusionContact
 # edge; the mask decides which pixels are ever eligible. Pure geometry over the
 # grid's cell data + baked tile types — no rendering, no state beyond the memo.
 
-const SLOP_PX = 4       # px leeway between the mesh silhouette and the painted art
-const DEPTH_TOL = 2.5   # world-unit slack for "surfaces touch"
-const SNAP = 0.1        # spans this close to an edge end reach it exactly
-const GAP_PX = 4        # merge contact runs separated by less than this
-const MIN_SPAN_PX = 10  # a run must outlast a corner-touch halo to be contact
+const SLOP_PX = 6      # px of outward probing for the neighbor's surface
+const DEPTH_TOL = 1.3  # world-unit slack for "surfaces touch" — kept tight, so a
+					   # neighbor whose surface recedes below this tile's (a slope
+					   # dropping away behind a flat top) reads as a real edge, not
+					   # a continuing plane, and keeps its silhouette outline
+const GAP = 0.12       # merge contact runs separated by less than this
+const MIN_SPAN = 0.3   # a run must outlast a corner-touch halo to be contact
 
 # The 26 surrounding cell offsets (3x3x3 minus the center), built once.
 static var _offsets: Array = []
@@ -44,10 +46,10 @@ static func resolve(grid: GridMap, cell: Vector3i, types: Dictionary) -> Diction
 		if ntype == null: continue
 		var contact = _contact(grid, id, nid, type, ntype, off)
 		for d in 6:
-			if contact[d] != null: runs[d].append(contact[d])
+			runs[d].append_array(contact[d])
 
 	for d in 6:
-		var span = _merge(runs[d], type.edges[d], Vector2(type.region_size))
+		var span = _merge(runs[d])
 		if span != null:
 			spans[d] = span
 			neighbors |= 1 << d
@@ -55,75 +57,83 @@ static func resolve(grid: GridMap, cell: Vector3i, types: Dictionary) -> Diction
 	return {"neighbors": neighbors, "spans": spans}
 
 # Union of overlapping/near-touching runs along one edge, keeping the longest;
-# null when even that is shorter than a corner halo. Tolerances are physical
-# (pixels), so convert them through the edge's on-screen length.
-static func _merge(runs: Array, edge: Vector4, size: Vector2) -> Variant:
+# null when even that is shorter than a corner halo.
+static func _merge(runs: Array) -> Variant:
 	if runs.is_empty(): return null
-	var len_px = ((Vector2(edge.z, edge.w) - Vector2(edge.x, edge.y)) * size).length()
-	if len_px < 1.0: return null
 	runs.sort_custom(func(a, b): return a.x < b.x)
 
 	var best = null
 	var cur: Vector2 = runs[0]
 	for i in range(1, runs.size() + 1):
-		if i < runs.size() and runs[i].x <= cur.y + GAP_PX / len_px:
+		if i < runs.size() and runs[i].x <= cur.y + GAP:
 			cur.y = maxf(cur.y, runs[i].y)
 			continue
 		if best == null or cur.y - cur.x > best.y - best.x:
 			best = cur
 		if i < runs.size(): cur = runs[i]
-	return best if (best.y - best.x) * len_px >= MIN_SPAN_PX else null
+	return best if best.y - best.x >= MIN_SPAN else null
 
-# Per-direction contact of one type pair at one cell offset. Depends only on
-# the two types and the offset, so memoized until the next rebuild.
+# Per-direction contact runs of one type pair at one cell offset. Tiles are
+# UNIT tall but cells are shorter, so layers overlap by the difference; a
+# surface continuing across a layer boundary sits exactly that far off. For
+# vertical offsets the pair is therefore evaluated at both the true placement
+# and the overlap-corrected one. Depends only on the two types and the offset,
+# so memoized until the next rebuild.
 static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dictionary, off: Vector3i) -> Array:
 	var key = [a_id, b_id, off]
 	if _cache.has(key): return _cache[key]
 
 	var f = Iso.facing()
-	var world = grid.global_transform.basis * (Vector3(off) * grid.cell_size)
-	var screen = Vector2(world.dot(f.x), -world.dot(f.y)) / Iso.PIXEL_SCALE
-	var shift = world.dot(-f.z)
-	var spans := []
-	for d in 6:
-		spans.append(_span(a, b, d, screen, shift))
-	_cache[key] = spans
-	return spans
+	var runs := []
+	for d in 6: runs.append([])
+	var worlds = [Vector3(off) * grid.cell_size]
+	if off.y != 0:
+		worlds.append(Vector3(off) * Vector3(grid.cell_size.x, Iso.UNIT, grid.cell_size.z))
+	for w in worlds:
+		var world = grid.global_transform.basis * w
+		var screen = Vector2(world.dot(f.x), -world.dot(f.y)) / Iso.PIXEL_SCALE
+		var shift = world.dot(-f.z)
+		for d in 6:
+			var s = _span(a, b, d, screen, shift)
+			if s != null: runs[d].append(s)
+	_cache[key] = runs
+	return runs
 
 # Contact span along edge d of a, against b sitting `screen` pixels away and
-# `shift` world units deeper. Every wedge pixel is walked inward to a's own
-# silhouette, b's solid is sampled there, and the pixel counts as contact when
-# a's surface depth is within DEPTH_TOL of b's front OR back surface.
+# `shift` world units deeper. Each probe is a silhouette point of the edge with
+# the [t_lo,t_hi] range of mask pixels that walk to it: the outward side must be
+# covered by b (a surface merely ending at the line leaves the outline exposed),
+# and it contacts when a's surface depth matches b's front OR back surface,
+# within what the probe distance can explain by surface slope. A contacting
+# probe erases its whole t range.
 static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: float) -> Variant:
 	if (a.present & (1 << d)) == 0: return null
 	var out: Vector2 = a.out[d]
-	if screen.length_squared() < 1e-6 or screen.normalized().dot(out) <= 0.0:
-		return null  # an edge can only be hidden by a neighbor on its outward side
-
-	var e: Vector4 = a.edges[d]
-	var e0 = Vector2(e.x, e.y)
-	var ev = Vector2(e.z, e.w) - e0
-	if ev.length_squared() < 1e-6: return null
-
-	var size: Vector2i = a.region_size
+	var probes: PackedFloat32Array = a.probes[d]
 	var to_b: Vector2 = b.origin - a.origin - screen
 	var lo = INF
 	var hi = -INF
-	for p in a.region_px[d]:
-		var s = MeshDepth.first_covered(a.depth, size, p + Vector2(0.5, 0.5), -out, MeshDepth.MAX_WALK)
-		if s == null: continue
-		var sb = MeshDepth.first_covered(b.depth, b.region_size, s + to_b, out, SLOP_PX)
-		if sb == null: continue  # outward side is exposed: keep the ink
-		var wa = MeshDepth.at(a.depth, size, s).x
-		var nb = MeshDepth.at(b.depth, b.region_size, sb)
-		if absf(wa - (nb.x + shift)) > DEPTH_TOL and absf(wa - (nb.y + shift)) > DEPTH_TOL:
+	var exp_lo = INF   # t-extent of EXPOSED probes (outward side empty)
+	var exp_hi = -INF
+	for i in range(0, probes.size(), 5):
+		var from = Vector2(probes[i + 2], probes[i + 3]) + to_b + out
+		var sb = MeshDepth.first_covered(b.depth, b.region_size, from, out, SLOP_PX - 1)
+		if sb == null:
+			exp_lo = minf(exp_lo, probes[i])   # exposed: nothing behind the ink
+			exp_hi = maxf(exp_hi, probes[i + 1])
 			continue
-		var t = clampf(((p + Vector2(0.5, 0.5)) / Vector2(size) - e0).dot(ev) / ev.length_squared(), 0.0, 1.0)
-		lo = minf(lo, t)
-		hi = maxf(hi, t)
+		var nb = MeshDepth.at(b.depth, b.region_size, sb)
+		var wa = probes[i + 4]
+		if absf(wa - (nb.x + shift)) > DEPTH_TOL and absf(wa - (nb.y + shift)) > DEPTH_TOL:
+			continue  # covered but at a different depth (a real step): keep it too
+		lo = minf(lo, probes[i])
+		hi = maxf(hi, probes[i + 1])
 
 	if lo > hi: return null
-	return Vector2(0.0 if lo < SNAP else lo, 1.0 if hi > 1.0 - SNAP else hi)
+	# Reach the edge end across probes the contact fell short of, UNLESS an
+	# exposed probe sits in that gap — that gap is real silhouette (a neighbour
+	# too low/short to back the ink), not just corner rounding or depth jitter.
+	return Vector2(0.0 if exp_lo >= lo else lo, 1.0 if exp_hi <= hi else hi)
 
 static func _zero_spans() -> Array:
 	var out := []

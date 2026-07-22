@@ -12,13 +12,12 @@ const MAX_WALK = 24  # px, inward walk across the mask/mesh border
 static func origin(size: Vector2i, offset_px: Vector2) -> Vector2:
 	return Vector2(size) * 0.5 + Vector2(-offset_px.x, offset_px.y)
 
-static func rasterize(mesh: Mesh, size: Vector2i, offset_px: Vector2) -> PackedVector2Array:
+static func rasterize(faces: PackedVector3Array, size: Vector2i, offset_px: Vector2) -> PackedVector2Array:
 	var tile = PackedVector2Array()
 	tile.resize(size.x * size.y)
 	tile.fill(EMPTY)
 	var f = Iso.facing()
 	var o = origin(size, offset_px)
-	var faces = mesh.get_faces()
 	for i in range(0, faces.size(), 3):
 		var tri := []
 		for j in 3:
@@ -62,21 +61,3 @@ static func first_covered(tile: PackedVector2Array, size: Vector2i, from: Vector
 		if covered(tile, size, p): return p
 		p += dir
 	return null
-
-# The real silhouette segment under one edge's mask wedge: every wedge pixel is
-# walked inward to the mesh, and the two farthest-apart hits are its endpoints.
-static func silhouette_edge(tile: PackedVector2Array, size: Vector2i, wedge: Array, outward: Vector2) -> Variant:
-	var hits := []
-	for p in wedge:
-		var s = first_covered(tile, size, p + Vector2(0.5, 0.5), -outward, MAX_WALK)
-		if s != null: hits.append(s)
-	if hits.size() < 2: return null
-	var best = -1.0
-	var pair := [hits[0], hits[1]]
-	for i in hits.size():
-		for j in range(i + 1, hits.size()):
-			var d2 = hits[i].distance_squared_to(hits[j])
-			if d2 > best:
-				best = d2
-				pair = [hits[i], hits[j]]
-	return Vector4(pair[0].x, pair[0].y, pair[1].x, pair[1].y)

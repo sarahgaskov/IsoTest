@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dhycjiark1ufp"
-path="res://.godot/imported/floor_dev_o.png-c0b5154b116bd2ee7d7a4a58e96e1e8d.ctex"
+uid="uid://ckir823w7ojex"
+path="res://.godot/imported/block_dev.png-c052c048917d5637ae214a459bead0bc.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/2d/occlusion/floor_dev_o.png"
-dest_files=["res://.godot/imported/floor_dev_o.png-c0b5154b116bd2ee7d7a4a58e96e1e8d.ctex"]
+source_file="res://assets/2d/block_dev.png"
+dest_files=["res://.godot/imported/block_dev.png-c052c048917d5637ae214a459bead0bc.ctex"]
 
 [params]
 
@@ -37,4 +37,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -48,14 +48,12 @@ func _ready() -> void:
 	_refresh_floor()
 	_refresh_wire()
 
-# Build the render types + sprite layer from config, without touching the
-# saved mesh library (so it is safe at runtime, unlike rebuild()).
+# Refresh the sprite layer from the placed cells, without touching the saved
+# mesh library (so it is safe at runtime, unlike rebuild()). Render types are
+# built lazily by _refresh_sprites, so only placed tiles pay for it.
 func _setup() -> void:
-	var data = JSON.parse_string(FileAccess.get_file_as_string(config))
-	if data == null: return
-	var paths: Array = data.get("tilesheets", [data.get("tilesheet")])
-	var sheets: Array = paths.map(func(p): return load(p) as Texture2D)
-	_build_types(data, paths, sheets)
+	_types = {}
+	OcclusionContact.clear()
 	if not show_3d: _mute_library()
 	_occ_hash = 0
 	_refresh_sprites()
@@ -102,7 +100,8 @@ func rebuild() -> void:
 	ResourceSaver.save(lib, LIB_PATH)
 	mesh_library = lib
 
-	_build_types(data, paths, sheets)
+	_types = {}
+	OcclusionContact.clear()
 	_occ_hash = 0
 	_refresh_sprites()
 
@@ -114,49 +113,75 @@ func rebake() -> void:
 		if FileAccess.file_exists(cache): DirAccess.remove_absolute(ProjectSettings.globalize_path(cache))
 	rebuild()
 
-# One shader material per tile type, fed the baked edges of its sheet's mask.
-func _build_types(data: Dictionary, paths: Array, sheets: Array) -> void:
-	_types = {}
-	OcclusionContact.clear()
+# Build the render type for each requested tile id into _types (additive, so
+# a rebuild only pays for what is placed). Rasterizing a mesh and walking its
+# contact probes is the pipeline's one heavy step, so unused tiles never do it.
+func _build_types(want: Array) -> void:
+	if want.is_empty(): return
+	var data = JSON.parse_string(FileAccess.get_file_as_string(config))
+	if data == null: return
+	var paths: Array = data.get("tilesheets", [data.get("tilesheet")])
 	for si in paths.size():
-		var ids := []
-		var regions := []
-		for id in data.tiles.size():
-			if data.tiles[id].get("sheet", 0) == si:
-				ids.append(id)
-				regions.append(data.tiles[id].region)
+		var ids := want.filter(func(id): return data.tiles[id].get("sheet", 0) == si)
 		if ids.is_empty(): continue
 
-		var baked = OcclusionMaskBaker.ensure(paths[si], regions)
-		var sheet_img: Image = sheets[si].get_image()
+		# ensure() bakes/validates the whole sheet at once, so hand it every
+		# region even when only some tiles are wanted this call.
+		var all := []
+		var pos := {}
+		for id in data.tiles.size():
+			if data.tiles[id].get("sheet", 0) == si:
+				pos[id] = all.size()
+				all.append(data.tiles[id].region)
+		var baked = OcclusionMaskBaker.ensure(paths[si], all)
+		var sheet_img: Image = (load(paths[si]) as Texture2D).get_image()
 		var mask_img = _load_mask(paths[si])
 		var raw_img = OcclusionMaskBaker.raw_mask(paths[si])
-		for k in ids.size():
-			_types[ids[k]] = _make_type(
-				data.tiles[ids[k]], sheet_img, mask_img, raw_img,
-				baked[k] if k < baked.size() else {})
+		for id in ids:
+			_types[id] = _make_type(
+				data.tiles[id], sheet_img, mask_img, raw_img,
+				baked[pos[id]] if pos[id] < baked.size() else {})
 
 func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: Dictionary) -> Dictionary:
 	var region = _region(tile)
 	var size = Vector2i(region.size)
 	var off: Array = tile.get("offset_px", [0, 0])
 	var offset = Vector2(off[0], off[1])
-	var depth = MeshDepth.rasterize(load(tile.mesh) as Mesh, size, offset)
+	var depth = MeshDepth.rasterize(_faces(tile), size, offset)
 	var edges: Array = baked.get("edges", _zeros(Vector4.ZERO)).duplicate()
 	var out = baked.get("out", _zeros(Vector2.ZERO))
 	var present = baked.get("present", 0)
 	var region_px = OcclusionMaskBaker.region_pixels(raw if raw else mask, Rect2i(region))
 
-	# Re-parametrise each edge by the real mesh silhouette (the mask wedge is
-	# wider than the mesh), keeping the baked edge when no mesh lies under it.
+	# Contact probes: walk every mask pixel of each edge inward to this tile's
+	# own silhouette, then collapse the pixels that share a silhouette point
+	# into one probe [t_lo, t_hi, s.x, s.y, front depth]. t is the pixel's
+	# position along the baked mask edge — the projection the shader redoes —
+	# so a fully-contacted band erases across its whole painted length; the
+	# collapse keeps the depth test O(silhouette) not O(mask pixels).
+	var probes := []
 	for d in 6:
-		if (present & (1 << d)) == 0: continue
-		var seg = MeshDepth.silhouette_edge(depth, size, region_px[d], out[d])
-		if seg == null: continue
-		var e = Vector4(seg.x / size.x, seg.y / size.y, seg.z / size.x, seg.w / size.y)
-		var flip = (Vector2(e.z, e.w) - Vector2(e.x, e.y)).dot(
-			Vector2(edges[d].z, edges[d].w) - Vector2(edges[d].x, edges[d].y)) < 0.0
-		edges[d] = Vector4(e.z, e.w, e.x, e.y) if flip else e
+		var e0 = Vector2(edges[d].x, edges[d].y)
+		var ev = Vector2(edges[d].z, edges[d].w) - e0
+		var groups := {}
+		if (present & (1 << d)) != 0 and ev.length_squared() > 1e-6:
+			var o: Vector2 = out[d]
+			for p in region_px[d]:
+				var c = p + Vector2(0.5, 0.5)
+				var s = MeshDepth.first_covered(depth, size, c, -o, MeshDepth.MAX_WALK)
+				if s == null: continue
+				var t = clampf((c / Vector2(size) - e0).dot(ev) / ev.length_squared(), 0.0, 1.0)
+				var key = Vector2i(s)
+				if groups.has(key):
+					groups[key].x = minf(groups[key].x, t)
+					groups[key].y = maxf(groups[key].y, t)
+				else:
+					groups[key] = Vector2(t, t)
+		var list = PackedFloat32Array()
+		for key in groups:
+			list.append_array([groups[key].x, groups[key].y, key.x + 0.5, key.y + 0.5,
+				MeshDepth.at(depth, size, Vector2(key) + Vector2(0.5, 0.5)).x])
+		probes.append(list)
 
 	var mat = ShaderMaterial.new()
 	mat.shader = OCC_SHADER
@@ -174,6 +199,7 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 		"region_size": size,
 		"region_px": region_px,
 		"origin": MeshDepth.origin(size, offset),
+		"probes": probes,
 	}
 
 # For shader sampling (tolerant to import compression, works in exports too).
@@ -197,9 +223,22 @@ func _zeros(v: Variant) -> Array:
 	for i in 6: out.append(v)
 	return out
 
+# One .obj serves all four cardinal facings: tiles pick one with "rot".
+const ROT = {"n": 0.0, "e": -PI / 2, "s": PI, "w": PI / 2}
+
+# The tile's mesh triangles in cell space, rotated to its facing.
+func _faces(tile: Dictionary) -> PackedVector3Array:
+	var faces = (load(tile.mesh) as Mesh).get_faces()
+	var yaw: float = ROT[tile.get("rot", "n")]
+	if yaw != 0.0:
+		var basis = Basis(Vector3.UP, yaw)
+		for i in faces.size():
+			faces[i] = basis * faces[i]
+	return faces
+
 # The raw .obj shaded with a flat color per face, for reading geometry.
 func _debug_mesh(tile: Dictionary) -> ArrayMesh:
-	var faces = (load(tile.mesh) as Mesh).get_faces()
+	var faces = _faces(tile)
 	var st = SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var colors := {}
@@ -250,6 +289,14 @@ func _refresh_sprites() -> void:
 		if wanted.has(cell): existing[cell] = child
 		else: child.free()
 
+	# Build only the types actually on the map (their neighbours count too, so
+	# resolve can read them), skipping the heavy work for every unused tile.
+	var missing := {}
+	for c in cells:
+		var id = get_cell_item(c)
+		if id != GridMap.INVALID_CELL_ITEM and not _types.has(id): missing[id] = true
+	_build_types(missing.keys())
+
 	for c in cells:
 		var type = _types.get(get_cell_item(c))
 		if type == null: continue
@@ -283,15 +330,20 @@ func _sprite_layer() -> Node3D:
 		layer.owner = null
 	return layer
 
-# Real collision from .obj
+# Real collision from .obj, rotated to the tile's facing
 func _collision(tile: Dictionary) -> Shape3D:
-	return (load(tile.mesh) as Mesh).create_trimesh_shape()
+	var shape = ConcavePolygonShape3D.new()
+	shape.set_faces(_faces(tile))
+	return shape
 
-# Reuse the resource already on disk so its UID stays stable across rebuilds.
+# Reuse the resource already on disk so its UID stays stable across rebuilds
+# (unless it no longer loads, e.g. it references since-deleted assets).
 func _fresh_library() -> MeshLibrary:
 	if not ResourceLoader.exists(LIB_PATH):
 		return MeshLibrary.new()
-	var lib: MeshLibrary = load(LIB_PATH)
+	var lib = load(LIB_PATH) as MeshLibrary
+	if lib == null:
+		return MeshLibrary.new()
 	for id in lib.get_item_list():
 		lib.remove_item(id)
 	return lib

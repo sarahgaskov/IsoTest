@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://q6xfqjcp0ckp"
-path="res://.godot/imported/floor_dev.png-7801858a9615f24d2190ea0ca188b683.ctex"
+uid="uid://dei81x2c0dsx2"
+path="res://.godot/imported/slopes_dev_o.png-f8655b7da5671b88dc1611a332d386b9.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/2d/floor_dev.png"
-dest_files=["res://.godot/imported/floor_dev.png-7801858a9615f24d2190ea0ca188b683.ctex"]
+source_file="res://assets/2d/occlusion/slopes_dev_o.png"
+dest_files=["res://.godot/imported/slopes_dev_o.png-f8655b7da5671b88dc1611a332d386b9.ctex"]
 
 [params]
 
