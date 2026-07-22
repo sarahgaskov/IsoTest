@@ -4,29 +4,33 @@ Wherever two tiles touch, the dark outline baked into each sprite is made
 transparent, so neighbouring tiles read as one continuous surface while the
 outer silhouette of the whole shape keeps its outline.
 
-The effect is produced by four cooperating pieces:
+The effect is produced by five cooperating pieces:
 
 1. **Occlusion masks** (`assets/2d/occlusion/<sheet>_o.png`) — hand-painted, one
    per tilesheet. Each marks the six silhouette edges of a tile with a flat
    colour.
 2. **`OcclusionMaskBaker`** (`scripts/o_mask_baker.gd`) — turns a mask into a
    small JSON description of where each edge starts and ends, cached on disk.
-3. **`OcclusionContact`** (`scripts/o_contact.gd`) — for a placed cell, detects
-   which edges its neighbours press against.
-4. **`IsoGrid` + `occlusion.gdshader`** (`scripts/iso_grid.gd`) — draws one
+3. **`MeshDepth`** (`scripts/o_mesh_depth.gd`) — rasterizes each tile's mesh
+   through the fixed iso projection into a per-pixel [front, back] depth span,
+   the ground truth for what the tile's surface occupies in 3D.
+4. **`OcclusionContact`** (`scripts/o_contact.gd`) — for a placed cell, detects
+   where along each edge a neighbour's surface actually touches it.
+5. **`IsoGrid` + `occlusion.gdshader`** (`scripts/iso_grid.gd`) — draws one
    billboard per placed cell and the shader erases the outline along the touched
-   edges.
+   spans.
 
-Contact is currently **all-or-nothing**: a touched edge is erased along its
-full length. Per-length partial contact (for a slab, a column, or a future
-staircase that only covers part of an edge) was attempted twice — projecting
-mask edges against each other, then projecting real `.obj`-derived edges
-against each other — and both mis-measured a shared edge as two parallel,
-non-overlapping lines, because two adjacent cubes each hide a *different*
-diagonal corner of their shared face and so contribute genuinely different 3D
-edges to their own silhouettes; edge-vs-edge overlap was the wrong test. A
-correct version would clip self's edge against the *entire* shape of the
-neighbour's silhouette (not one edge of it) — parked for later.
+Contact is **mesh-driven and per-length**: the criterion is depth contact vs.
+exposure. An outline pixel is erased where a neighbour's surface *touches* it
+in 3D — at any dihedral angle, so a wall base resting on a floor erases exactly
+like a coplanar merge — and kept where its outward side is *exposed*: empty, or
+holding a surface far enough behind that the edge reads as a real step. The
+mesh decides how far contact runs along an edge; the mask decides which pixels
+are ever eligible (artist veto + edge identity). Earlier edge-vs-edge overlap
+attempts are documented in `docs/occlusion_mesh_plan.md` — two adjacent cubes
+each hide a *different* diagonal corner of their shared face, so their
+silhouette edges never coincide; the depth-contact approach avoids comparing
+edges entirely.
 
 ## The six directions
 
@@ -92,9 +96,50 @@ Converts one cached tile record into the runtime form the grid/shader want:
 ### `_decode_all(tiles) -> Array`
 Maps `_decode` over every tile in a cache/bake result.
 
+### `raw_mask(sheet_path) -> Image`
+The mask as painted on disk (`Image.load_from_file`, bypassing import), for
+pixel-exact colour analysis at rebuild time.
+
+### `region_pixels(img, region) -> Array`
+One tile region's mask pixels grouped by direction (six arrays of region-local
+positions) — the per-pixel eligibility sets `OcclusionContact` walks.
+
 ### `_sibling(sheet_path, suffix) -> String`
 Path helper: `<dir>/occlusion/<basename><suffix>` — used for both the `_o.png`
 mask and the `_o.json` cache.
+
+---
+
+## `scripts/o_mesh_depth.gd` — the depth rasterizer
+
+`MeshDepth` renders a tile's mesh on the CPU, once per type, into the sprite
+region's pixel space (origin at the region centre, `+y` down): each pixel holds
+a `Vector2(front, back)` — the depth span of the solid under it, or
+`(INF, -INF)` when uncovered. Storing the *back* surface too is what makes a
+front neighbour's touching face detectable: that face is hidden behind the
+neighbour's own body, so its front depth alone never matches. All `static`.
+
+### `rasterize(mesh, size, offset_px) -> PackedVector2Array`
+Projects every triangle through `Iso.facing()`
+(`screen = (v·right, −v·up) / PIXEL_SCALE + origin`, `depth = v·(−facing.z)`)
+and scan-converts it (`_scan`, barycentric at pixel centres), min/maxing each
+covered pixel's span. Rasterizing once keeps every later query O(1) — earlier
+per-query triangle walks froze the editor.
+
+### `at(tile, size, pos) -> Vector2` / `covered(tile, size, pos) -> bool`
+Constant-time span lookup / coverage test at a pixel position.
+
+### `first_covered(tile, size, from, dir, steps) -> Variant`
+Walks from a position in 1 px steps until it finds a covered pixel; `null` when
+none within `steps`. Used to cross the border between the (wider) mask wedge
+and the mesh silhouette.
+
+### `silhouette_edge(tile, size, wedge, outward) -> Variant`
+The *real* silhouette segment under one edge's mask wedge: every wedge pixel is
+walked inward (up to `MAX_WALK`) to the mesh, and the two farthest-apart hits
+are the endpoints. Parametrising edges by the mesh instead of the mask matters
+because the mask hexagon fills the full region while the mesh is narrower —
+mask-edge endpoints would leave `t` gaps at full contact.
 
 ---
 
@@ -131,14 +176,20 @@ For each tilesheet, gathers the tiles that use it, calls
 `OcclusionMaskBaker.ensure` once for the whole sheet, and builds a render type
 per tile via `_make_type`. `_types` is keyed by cell item id.
 
-### `_make_type(tile, sheet, mask, baked) -> Dictionary`
+### `_make_type(tile, sheet, mask, raw, baked) -> Dictionary`
 Builds everything one tile type needs:
 - `mesh` — its billboard quad (`_quad`).
+- `depth`, `region_size`, `origin` — the type's rasterized `MeshDepth` tile and
+  its pixel-space frame.
+- `region_px` — mask pixels grouped by direction (from the raw mask, so colours
+  are exact).
+- `edges` — each present edge re-parametrised by `MeshDepth.silhouette_edge`
+  (oriented like the baked edge; the baked mask edge stays as fallback when no
+  mesh lies under a wedge).
 - `mat` — a `ShaderMaterial` on `occlusion.gdshader`, given the cropped sprite
-  (`albedo_tex`), the cropped mask (`mask_tex`, or a 1×1 black fallback), and the
-  six baked `edges`.
-- `edges`, `out`, `present` — the baked data, kept for the CPU-side neighbour
-  resolution.
+  (`albedo_tex`), the cropped mask (`mask_tex`, or a 1×1 black fallback), and
+  `edges`.
+- `out`, `present` — baked data for the CPU-side neighbour resolution.
 
 ### `_load_mask(sheet_path) -> Image`
 Loads the mask through the resource system (`load(...).get_image()`) for shader
@@ -186,26 +237,51 @@ billboard.
 ## `scripts/o_contact.gd` — the contact detection
 
 `OcclusionContact` is the tile-touch detector, split out of the grid: pure
-geometry over the grid's cells and baked tile types, with no rendering or state.
-All `static`.
+geometry over the grid's cells and baked tile types, with no rendering and no
+state beyond a per-pair memo. All `static`.
+
+Its knobs are physical: `SLOP_PX` (leeway for the small gap between the mesh
+silhouette and the painted art), `DEPTH_TOL` (world-unit slack for "surfaces
+touch"), `SNAP` (spans this close to an edge end reach it exactly), `GAP_PX`
+(runs closer than this merge) and `MIN_SPAN_PX` (a run must outlast the halo a
+corner touch leaves around a vertex — anything shorter is a corner *meeting*,
+not surface contact, and keeps its ink).
 
 ### `resolve(grid, cell, types) -> Dictionary`
 The entry point. For the given cell it returns
-`{neighbors: int, spans: Array[Vector2]}` — which of the six edges are pressed
-against, each with the full-length span `FULL_SPAN = (0,1)` when touched.
+`{neighbors: int, spans: Array[Vector2]}` — which of the six edges are touched
+and the `[t0,t1]` contact span along each. Every one of the 26 surrounding
+occupied cells contributes per-direction runs (`_contact`), which are then
+combined per edge by `_merge`.
 
-For every one of the 26 surrounding cells that is occupied:
-1. Projects the offset to that neighbour into **screen space** using the fixed
-   iso camera basis (`Iso.facing()`), giving its on-screen direction.
-2. Tests **every** present edge whose outward normal aligns with that direction
-   past `ALIGN` (`dot > 0.6`, ~53°) — not just the single best match. A
-   full-size neighbour genuinely spans two hexagon edges at once (the pair
-   bounding the shared cube face); picking only the single best-aligned
-   direction per neighbour silently drops the other and leaves it unoccluded.
-3. The neighbour must also have the matching **opposite** edge present
-   (`ntype.present` has bit `(d+3) mod 6`) — a cheap sanity check that the
-   neighbour actually has geometry on that side.
-4. Any direction that clears both checks is marked touched with the full span.
+### `_merge(runs, edge, size) -> Variant`
+Unions overlapping / near-touching runs along one edge and keeps the longest;
+`null` when even that is shorter than `MIN_SPAN_PX`. A plain bounding-interval
+union is wrong here: two point-touches at opposite corners would bridge into a
+full-edge erase.
+
+### `_contact(grid, a_id, b_id, a, b, off) -> Array`
+Per-direction contact of one type pair at one cell offset. Projects the offset
+into screen pixels and a depth shift once, then runs `_span` per direction.
+Depends only on the two types and the offset, so it is memoised in `_cache`
+(cleared by `clear()` on every rebuild).
+
+### `_span(a, b, d, screen, shift) -> Variant`
+The depth-contact test for one edge, per mask wedge pixel:
+1. **Outward gate** — the neighbour must sit on the edge's outward side
+   (`screen · out[d] > 0`), else corner pixels bleed contact from neighbours
+   across adjacent edges.
+2. Walk the pixel **inward** to this tile's own silhouette point (skip if the
+   wedge pixel has no mesh under it); its front depth is the surface being
+   outlined.
+3. Sample the neighbour's depth tile at that point (shifted into its frame,
+   with up to `SLOP_PX` outward slack); no coverage means the outward side is
+   exposed — keep the ink.
+4. **Contact** iff the surface depth is within `DEPTH_TOL` of the neighbour's
+   front **or back** surface — near a *surface*, not merely inside the solid,
+   which would over-match wrong-direction neighbours.
+Contact pixels accumulate `t` along the mesh-silhouette edge into a min/max
+run, whose ends snap to 0/1 within `SNAP`.
 
 ### `_zero_spans() -> Array`
 Six `Vector2.ZERO`s — the default "no contact" spans.
@@ -213,6 +289,14 @@ Six `Vector2.ZERO`s — the default "no contact" spans.
 ### `_neighbor_offsets() -> Array`
 Builds the 26 `Vector3i` offsets around a cell (3×3×3 minus the centre),
 memoised in a static var.
+
+### Verifying changes
+`tools/occ_diag.gd` (run headless:
+`godot --headless --path <project> --script res://tools/occ_diag.gd`) checks
+the rasterized extents, prints every per-offset span table, simulates the
+shader per pixel for every cell in `scenes/level.tscn`, and composites the
+whole scene to PNGs (`tools/diag_*.png`) — diffing both against the
+all-or-nothing baseline. For the current level the result is pixel-identical.
 
 ---
 
@@ -245,9 +329,9 @@ Unpacks the `[t0,t1]` span for direction `d` from the three `range*` vec4s.
    - and if `t` falls inside that direction's span, sets alpha to 0 so the
      outline pixel is scissored away.
 
-Every touched direction currently carries the full `[0,1]` span, so this erases
-the whole edge. The `t`-projection machinery already supports a sub-range for
-partial contact — nothing here needs to change when that lands.
+The spans carry real sub-ranges now — a slab, column or staircase neighbour
+erases only the stretch of the edge it actually presses against; a fully
+backed edge arrives as `[0,1]` and disappears whole.
 
 ---
 
@@ -256,9 +340,10 @@ partial contact — nothing here needs to change when that lands.
 ```
 paint mask ─▶ OcclusionMaskBaker.ensure ─▶ <sheet>_o.json (cached by md5)
                                               │  decoded: edges (UV), out, present
+tile .obj ─▶ MeshDepth.rasterize ─▶ per-pixel [front, back] depth tile
                                               ▼
-config (tiles.json) ─▶ _build_types ─▶ _types[id] = {mesh, mat, edges, out, present}
-                                              │
+config (tiles.json) ─▶ _build_types ─▶ _types[id] = {mesh, mat, edges, out,
+                                              │      present, depth, region_px, …}
 placed cells ─▶ _refresh_sprites ─▶ one billboard per cell
                                               │
                      _apply_occlusion ─▶ OcclusionContact.resolve

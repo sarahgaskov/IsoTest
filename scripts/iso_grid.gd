@@ -15,6 +15,9 @@ const OCC_SHADER = preload("res://assets/shaders/occlusion.gdshader")
 @export_tool_button("Rebake occlusion") var _rebake = rebake
 
 @export_group("Editor aids")
+## Snap the editor camera to the orthogonal isometric view, centered on the origin [EDITOR ONLY]
+@export_tool_button("Isometric view") var _iso_view = snap_editor_view
+
 ## Swap sprites for the raw 3D models, one color per face [EDITOR ONLY]
 @export var show_3d = false:
 	set(v):
@@ -114,6 +117,7 @@ func rebake() -> void:
 # One shader material per tile type, fed the baked edges of its sheet's mask.
 func _build_types(data: Dictionary, paths: Array, sheets: Array) -> void:
 	_types = {}
+	OcclusionContact.clear()
 	for si in paths.size():
 		var ids := []
 		var regions := []
@@ -126,16 +130,33 @@ func _build_types(data: Dictionary, paths: Array, sheets: Array) -> void:
 		var baked = OcclusionMaskBaker.ensure(paths[si], regions)
 		var sheet_img: Image = sheets[si].get_image()
 		var mask_img = _load_mask(paths[si])
+		var raw_img = OcclusionMaskBaker.raw_mask(paths[si])
 		for k in ids.size():
 			_types[ids[k]] = _make_type(
-				data.tiles[ids[k]], sheet_img, mask_img,
+				data.tiles[ids[k]], sheet_img, mask_img, raw_img,
 				baked[k] if k < baked.size() else {})
 
-func _make_type(tile: Dictionary, sheet: Image, mask: Image, baked: Dictionary) -> Dictionary:
+func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: Dictionary) -> Dictionary:
 	var region = _region(tile)
-	var edges = baked.get("edges", _zeros(Vector4.ZERO))
+	var size = Vector2i(region.size)
+	var off: Array = tile.get("offset_px", [0, 0])
+	var offset = Vector2(off[0], off[1])
+	var depth = MeshDepth.rasterize(load(tile.mesh) as Mesh, size, offset)
+	var edges: Array = baked.get("edges", _zeros(Vector4.ZERO)).duplicate()
 	var out = baked.get("out", _zeros(Vector2.ZERO))
 	var present = baked.get("present", 0)
+	var region_px = OcclusionMaskBaker.region_pixels(raw if raw else mask, Rect2i(region))
+
+	# Re-parametrise each edge by the real mesh silhouette (the mask wedge is
+	# wider than the mesh), keeping the baked edge when no mesh lies under it.
+	for d in 6:
+		if (present & (1 << d)) == 0: continue
+		var seg = MeshDepth.silhouette_edge(depth, size, region_px[d], out[d])
+		if seg == null: continue
+		var e = Vector4(seg.x / size.x, seg.y / size.y, seg.z / size.x, seg.w / size.y)
+		var flip = (Vector2(e.z, e.w) - Vector2(e.x, e.y)).dot(
+			Vector2(edges[d].z, edges[d].w) - Vector2(edges[d].x, edges[d].y)) < 0.0
+		edges[d] = Vector4(e.z, e.w, e.x, e.y) if flip else e
 
 	var mat = ShaderMaterial.new()
 	mat.shader = OCC_SHADER
@@ -149,6 +170,10 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, baked: Dictionary) 
 		"edges": edges,
 		"out": out,
 		"present": present,
+		"depth": depth,
+		"region_size": size,
+		"region_px": region_px,
+		"origin": MeshDepth.origin(size, offset),
 	}
 
 # For shader sampling (tolerant to import compression, works in exports too).
@@ -282,6 +307,27 @@ func _region(tile: Dictionary) -> Rect2:
 	return Rect2(r[0], r[1], r[2], r[3])
 
 # = IN-EDITOR Helpers =
+
+# Snap the editor viewport to the game's isometric view: switch it to
+# orthogonal through its own view menu, then move its camera; the editor
+# adopts an externally moved camera into its orbit cursor (pivot included),
+# so navigation keeps working. In ortho the pivot is derived as
+# origin - basis.z * (far - near) / 2, hence the camera position below.
+func snap_editor_view() -> void:
+	if not Engine.is_editor_hint():
+		return
+	var ei = Engine.get_singleton("EditorInterface")
+	var vp: SubViewport = ei.get_editor_viewport_3d(0)
+	var host = vp.get_parent().get_parent()
+	for menu in host.find_children("*", "MenuButton", true, false):
+		var popup: PopupMenu = menu.get_popup()
+		for i in popup.item_count:
+			if popup.get_item_text(i) == "Orthogonal":
+				popup.id_pressed.emit(popup.get_item_id(i))
+	var cam := vp.get_camera_3d()
+	var t = Transform3D(Iso.facing(), Vector3.ZERO)
+	t.origin = t.basis.z * (cam.far - cam.near) * 0.5
+	cam.global_transform = t
 
 func _refresh_floor() -> void:
 	if not Engine.is_editor_hint():
