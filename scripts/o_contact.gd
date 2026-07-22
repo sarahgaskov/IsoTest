@@ -11,14 +11,14 @@ class_name OcclusionContact
 # edge; the mask decides which pixels are ever eligible. Pure geometry over the
 # grid's cell data + baked tile types — no rendering, no state beyond the memo.
 
-const SLOP_PX = 200      # px of outward probing for the neighbor's surface
-const DEPTH_TOL = 1.3  # world-unit slack for "surfaces touch" — kept tight, so a
+const SLOP_PX = 6.0      # px of outward probing for the neighbor's surface
+const DEPTH_TOL = 1.23  # world-unit slack for "surfaces touch" — kept tight, so a
 					   # neighbor whose surface recedes below this tile's (a slope
 					   # dropping away behind a flat top) reads as a real edge, not
 					   # a continuing plane, and keeps its silhouette outline
 
-const GAP = 0.12       # merge contact runs separated by less than this
-const MIN_SPAN = 0.2   # a run must outlast a corner-touch halo to be contact
+const GAP = 0.42       # merge contact runs separated by less than this
+const MIN_SPAN = 0.51   # a run must outlast a corner-touch halo to be contact
 
 # The 26 surrounding cell offsets (3x3x3 minus the center), built once.
 static var _offsets: Array = []

@@ -10,8 +10,7 @@ const PIXEL_SCALE = sqrt(2)/2.0
 const UNIT = 24.0                 ## edge of a perfect block (3d units)
 const TILE_PX = Vector2i(48, 24)  ## isometric footprint of one cell (px)
 
-const LAYER_PX = 25  ## on-screen height of one stacked layer (px)
-# Force GPU to round to 24 pixels
+const LAYER_PX = 24.75  ## on-screen height of one stacked layer (px)
 
 const RISE = cos(deg_to_rad(30)) ## world projected onto screen
 

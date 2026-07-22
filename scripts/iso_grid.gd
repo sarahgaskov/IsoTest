@@ -151,7 +151,7 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 	var occ_faces = _faces(tile)
 	
 	# Inflate the faces slightly for the occlusion proxy
-	var inflate = Transform3D().scaled(Vector3(1.0, 1.0, 1.0))
+	var inflate = Transform3D().scaled(Vector3(1.02, 1.02, 1.02))
 	for i in occ_faces.size():
 		occ_faces[i] = inflate * occ_faces[i]
 	
