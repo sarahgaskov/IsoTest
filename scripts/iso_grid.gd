@@ -147,7 +147,16 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 	var size = Vector2i(region.size)
 	var off: Array = tile.get("offset_px", [0, 0])
 	var offset = Vector2(off[0], off[1])
-	var depth = MeshDepth.rasterize(_faces(tile), size, offset)
+	
+	var occ_faces = _faces(tile)
+	
+	# Inflate the faces slightly for the occlusion proxy
+	var inflate = Transform3D().scaled(Vector3(1.0, 1.0, 1.0))
+	for i in occ_faces.size():
+		occ_faces[i] = inflate * occ_faces[i]
+	
+	var depth = MeshDepth.rasterize(occ_faces, size, offset)
+
 	var edges: Array = baked.get("edges", _zeros(Vector4.ZERO)).duplicate()
 	var out = baked.get("out", _zeros(Vector2.ZERO))
 	var present = baked.get("present", 0)
@@ -227,13 +236,23 @@ func _zeros(v: Variant) -> Array:
 const ROT = {"n": 0.0, "e": -PI / 2, "s": PI, "w": PI / 2}
 
 # The tile's mesh triangles in cell space, rotated to its facing.
+# scripts/iso_grid.gd
+
 func _faces(tile: Dictionary) -> PackedVector3Array:
 	var faces = (load(tile.mesh) as Mesh).get_faces()
 	var yaw: float = ROT[tile.get("rot", "n")]
+	
+	var y_scale = Iso.cell().y / Iso.UNIT
+	
+	var basis = Basis()
 	if yaw != 0.0:
-		var basis = Basis(Vector3.UP, yaw)
-		for i in faces.size():
-			faces[i] = basis * faces[i]
+		basis = Basis(Vector3.UP, yaw)
+		
+	for i in faces.size():
+		var v = basis * faces[i]
+		v.y *= y_scale
+		faces[i] = v
+		
 	return faces
 
 # The raw .obj shaded with a flat color per face, for reading geometry.
