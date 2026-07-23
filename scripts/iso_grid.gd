@@ -209,6 +209,7 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 		"region_px": region_px,
 		"origin": MeshDepth.origin(size, offset),
 		"probes": probes,
+		"ramp_chain": _ramp_chain(tile),
 	}
 
 # For shader sampling (tolerant to import compression, works in exports too).
@@ -234,6 +235,21 @@ func _zeros(v: Variant) -> Array:
 
 # One .obj serves all four cardinal facings: tiles pick one with "rot".
 const ROT = {"n": 0.0, "e": -PI / 2, "s": PI, "w": PI / 2}
+
+# Horizontal ascent direction (grid units) of a tile authored facing "n"
+# (ascending toward -Z), rotated per "rot" the same way _faces() rotates the mesh.
+const RAMP_DIR = {"n": Vector2i(0, -1), "e": Vector2i(1, 0), "s": Vector2i(0, 1), "w": Vector2i(-1, 0)}
+
+# A plain stairs/slope tile climbs one full cell height across its own
+# footprint, so the next tile continuing the same ramp sits one cell further
+# along the ascent direction AND one cell up. Corner pieces (bidirectional
+# apex, no single ascent direction) are intentionally excluded.
+func _ramp_chain(tile: Dictionary) -> Variant:
+	var name: String = tile.name
+	if not (name.begins_with("stairs_") or name.begins_with("slope_")):
+		return null
+	var dir: Vector2i = RAMP_DIR[tile.get("rot", "n")]
+	return Vector3i(dir.x, 1, dir.y)
 
 # The tile's mesh triangles in cell space, rotated to its facing.
 # scripts/iso_grid.gd

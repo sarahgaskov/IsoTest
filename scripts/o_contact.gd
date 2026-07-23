@@ -102,18 +102,26 @@ static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dict
 	var runs := []
 	for d in 6:
 		runs.append([])
-		
+
 	var worlds = [Vector3(off) * grid.cell_size]
 	if off.y != 0:
 		worlds.append(Vector3(off) * Vector3(grid.cell_size.x, Iso.UNIT, grid.cell_size.z))
-		
+
+	# A straight stairs/slope tile continuing into an identical one placed at
+	# its own baked ramp_chain offset is a designed seamless join, not a
+	# coincidental depth match — the per-step tread/riser jaggedness would
+	# otherwise fail DEPTH_TOL almost everywhere along the edge (steps aren't
+	# locally planar), leaving the whole seam outlined. See docs/occlusion.md.
+	var chain = a.get("ramp_chain")
+	var ramp_bridge = a_id == b_id and chain != null and (off == chain or off == -chain)
+
 	for w in worlds:
 		var world = grid.global_transform.basis * w
 		var screen = Vector2(world.dot(f.x), -world.dot(f.y)) / Iso.PIXEL_SCALE
 		var shift = world.dot(-f.z)
 		for d in 6:
 			# Pass the 'off' parameter down to _span
-			var s = _span(a, b, d, screen, shift, off)
+			var s = _span(a, b, d, screen, shift, off, ramp_bridge)
 			if s != null:
 				runs[d].append(s)
 				
@@ -127,7 +135,7 @@ static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dict
 # and it contacts when a's surface depth matches b's front OR back surface,
 # within what the probe distance can explain by surface slope. A contacting
 # probe erases its whole t range.
-static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: float, off: Vector3i) -> Variant:
+static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: float, off: Vector3i, ramp_bridge: bool = false) -> Variant:
 	if (a.present & (1 << d)) == 0:
 		return null
 		
@@ -151,9 +159,11 @@ static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: 
 			
 		var nb = MeshDepth.at(b.depth, b.region_size, sb)
 		var wa = probes[i + 4]
-		
-		# Standard DEPTH_TOL check
-		if absf(wa - (nb.x + shift)) > DEPTH_TOL and absf(wa - (nb.y + shift)) > DEPTH_TOL:
+
+		# Standard DEPTH_TOL check — skipped for a known ramp-chain join, where
+		# the neighbor is understood to continue the same ramp regardless of
+		# per-step depth jaggedness (touching is enough).
+		if not ramp_bridge and absf(wa - (nb.x + shift)) > DEPTH_TOL and absf(wa - (nb.y + shift)) > DEPTH_TOL:
 			keep_lo = minf(keep_lo, probes[i])
 			keep_hi = maxf(keep_hi, probes[i + 1])
 			continue
