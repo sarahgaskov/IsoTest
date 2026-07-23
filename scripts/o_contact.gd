@@ -114,27 +114,35 @@ static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: 
 	var to_b: Vector2 = b.origin - a.origin - screen
 	var lo = INF
 	var hi = -INF
-	var exp_lo = INF   # t-extent of EXPOSED probes (outward side empty)
-	var exp_hi = -INF
+	var keep_lo = INF  # t-extent of probes that must stay silhouette: exposed
+	var keep_hi = -INF # (nothing behind the ink) OR a real step (covered, wrong depth)
 	for i in range(0, probes.size(), 5):
 		var from = Vector2(probes[i + 2], probes[i + 3]) + to_b + out
 		var sb = MeshDepth.first_covered(b.depth, b.region_size, from, out, SLOP_PX - 1)
 		if sb == null:
-			exp_lo = minf(exp_lo, probes[i])   # exposed: nothing behind the ink
-			exp_hi = maxf(exp_hi, probes[i + 1])
+			keep_lo = minf(keep_lo, probes[i])   # exposed: nothing behind the ink
+			keep_hi = maxf(keep_hi, probes[i + 1])
 			continue
 		var nb = MeshDepth.at(b.depth, b.region_size, sb)
 		var wa = probes[i + 4]
 		if absf(wa - (nb.x + shift)) > DEPTH_TOL and absf(wa - (nb.y + shift)) > DEPTH_TOL:
-			continue  # covered but at a different depth (a real step): keep it too
+			# covered but at a different depth (a real step): keep it too, and
+			# block the edge-end bridge below like an exposed probe would —
+			# otherwise a real step with no exposed probes in it (e.g. backed
+			# by more geometry further behind) gets silently dropped from both
+			# sets and the bridge erases straight through it.
+			keep_lo = minf(keep_lo, probes[i])
+			keep_hi = maxf(keep_hi, probes[i + 1])
+			continue
 		lo = minf(lo, probes[i])
 		hi = maxf(hi, probes[i + 1])
 
 	if lo > hi: return null
-	# Reach the edge end across probes the contact fell short of, UNLESS an
-	# exposed probe sits in that gap — that gap is real silhouette (a neighbour
-	# too low/short to back the ink), not just corner rounding or depth jitter.
-	return Vector2(0.0 if exp_lo >= lo else lo, 1.0 if exp_hi <= hi else hi)
+	# Reach the edge end across probes the contact fell short of, UNLESS a kept
+	# (exposed or real-step) probe sits in that gap — that gap is real
+	# silhouette (a neighbour too low/short/far to back the ink, or a genuine
+	# step), not just corner rounding or depth jitter.
+	return Vector2(0.0 if keep_lo >= lo else lo, 1.0 if keep_hi <= hi else hi)
 
 static func _zero_spans() -> Array:
 	var out := []

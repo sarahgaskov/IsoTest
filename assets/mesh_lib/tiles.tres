@@ -1,8 +1,8 @@
-[gd_resource type="MeshLibrary" format=3]
+[gd_resource type="MeshLibrary" format=3 uid="uid://cowjhfa3xyqf2"]
 
-[ext_resource type="Texture2D" path="res://assets/2d/block_dev.png" id="1_vt6s1"]
-[ext_resource type="Texture2D" path="res://assets/2d/stairs_dev.png" id="2_8nvxf"]
-[ext_resource type="Texture2D" path="res://assets/2d/slopes_dev.png" id="3_8nvxf"]
+[ext_resource type="Texture2D" uid="uid://ckir823w7ojex" path="res://assets/2d/block_dev.png" id="1_vt6s1"]
+[ext_resource type="Texture2D" uid="uid://e43lqpgtkovc" path="res://assets/2d/stairs_dev.png" id="2_8nvxf"]
+[ext_resource type="Texture2D" uid="uid://bb4mfnwwrbn3x" path="res://assets/2d/slopes_dev.png" id="3_8nvxf"]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_8nvxf"]
 atlas = ExtResource("1_vt6s1")

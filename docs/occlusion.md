@@ -289,19 +289,28 @@ registers. Depends only on the two types and the offset, so memoised in
 The depth-contact test for one edge. For each probe of edge `d`:
 1. Sample the neighbour's depth tile just **outward** of the probe's silhouette
    point (shifted into the neighbour's frame, up to `SLOP_PX` out). No coverage
-   means the outward side is **exposed** — the probe's `t` range is recorded as
-   exposed and the ink is kept there.
+   means the outward side is **exposed** — the probe's `t` range is folded into
+   `keep_lo/keep_hi` and the ink is kept there.
 2. **Contact** iff the tile's surface depth is within `DEPTH_TOL` of the
    neighbour's front **or back** surface — near a *surface*, not merely inside
-   the solid, which would over-match wrong-direction neighbours.
+   the solid, which would over-match wrong-direction neighbours. A probe that
+   *is* covered but at a mismatched depth is a real step (e.g. a shorter
+   diagonal neighbour whose top surface sits below this probe) — it also folds
+   into `keep_lo/keep_hi`, same as an exposed probe.
 A contacting probe contributes its `[t_lo, t_hi]`; the min/max over all
 contacting probes is the run. That run then **reaches the edge end** across
 probes it fell short of — corner rounding, or a neighbour that covers but
-mis-reads by a pixel of jitter — *unless* an exposed probe sits in the gap. An
-exposed gap is real silhouette (a neighbour too short or absent to back the ink,
-e.g. a tall tile rising above a shorter one), so the outline is kept there. This
-is what distinguishes "the whole edge is backed, snap it closed" from "the top
-of this edge stands above its neighbour, keep it".
+mis-reads by a pixel of jitter — *unless* a kept probe sits in the gap. A kept
+gap is real silhouette (a neighbour too short, absent, or too far behind to
+back the ink, e.g. a tall tile rising above a shorter diagonal neighbour), so
+the outline is kept there. This is what distinguishes "the whole edge is
+backed, snap it closed" from "the top of this edge stands above its
+neighbour, keep it" — folding depth-mismatched-but-covered probes into the
+same kept set as exposed ones matters most for diagonal neighbours, where the
+contact run can be genuinely short (e.g. a half-height neighbour covering
+only the bottom fraction of the edge): without it, that short run used to
+bridge all the way to the edge's far end and erase silhouette that should
+have stayed visible.
 
 ### `_zero_spans() -> Array`
 Six `Vector2.ZERO`s — the default "no contact" spans.
@@ -318,7 +327,11 @@ per-offset span table, simulates the shader per pixel for every cell, and
 composites the scene to PNGs — diffing both against the all-or-nothing baseline
 (pixel-identical). `tools/tile_fit.gd` checks every tile's mesh↔art fit and
 composites a demo layout; `tools/repro.gd` renders mixed ramps / pyramids /
-plates for eyeballing.
+plates for eyeballing. `tools/repro4.gd` isolates a tall slab against a short
+slab at each of the four diagonal cell offsets, prints per-probe
+contact/exposed/depthfail classification for the E/W edges, and renders each
+case at 8x — the regression guard for the depth-mismatched-but-covered-probe
+bridging bug (see `_span` above).
 
 ---
 
