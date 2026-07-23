@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bbrvdbpscgh7g"]
 
 [ext_resource type="PackedScene" uid="uid://vju83aq3kv7x" path="res://scenes/iso_camera.tscn" id="1_2q6dc"]
-[ext_resource type="MeshLibrary" path="res://assets/mesh_lib/tiles.tres" id="1_w7c3h"]
+[ext_resource type="MeshLibrary" uid="uid://cowjhfa3xyqf2" path="res://assets/mesh_lib/tiles.tres" id="1_w7c3h"]
 [ext_resource type="Script" uid="uid://dyu58qbx3iuce" path="res://scripts/iso_grid.gd" id="3_iso"]
 
 [node name="Level" type="Node3D" unique_id=1360568531]

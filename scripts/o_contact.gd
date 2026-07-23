@@ -82,21 +82,28 @@ static func _merge(runs: Array) -> Variant:
 # so memoized until the next rebuild.
 static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dictionary, off: Vector3i) -> Array:
 	var key = [a_id, b_id, off]
-	if _cache.has(key): return _cache[key]
-
+	if _cache.has(key):
+		return _cache[key]
+		
 	var f = Iso.facing()
 	var runs := []
-	for d in 6: runs.append([])
+	for d in 6:
+		runs.append([])
+		
 	var worlds = [Vector3(off) * grid.cell_size]
 	if off.y != 0:
 		worlds.append(Vector3(off) * Vector3(grid.cell_size.x, Iso.UNIT, grid.cell_size.z))
+		
 	for w in worlds:
 		var world = grid.global_transform.basis * w
 		var screen = Vector2(world.dot(f.x), -world.dot(f.y)) / Iso.PIXEL_SCALE
 		var shift = world.dot(-f.z)
 		for d in 6:
-			var s = _span(a, b, d, screen, shift)
-			if s != null: runs[d].append(s)
+			# Pass the 'off' parameter down to _span
+			var s = _span(a, b, d, screen, shift, off)
+			if s != null:
+				runs[d].append(s)
+				
 	_cache[key] = runs
 	return runs
 
@@ -107,42 +114,52 @@ static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dict
 # and it contacts when a's surface depth matches b's front OR back surface,
 # within what the probe distance can explain by surface slope. A contacting
 # probe erases its whole t range.
-static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: float) -> Variant:
-	if (a.present & (1 << d)) == 0: return null
+static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: float, off: Vector3i) -> Variant:
+	if (a.present & (1 << d)) == 0:
+		return null
+		
 	var out: Vector2 = a.out[d]
 	var probes: PackedFloat32Array = a.probes[d]
 	var to_b: Vector2 = b.origin - a.origin - screen
+	
 	var lo = INF
 	var hi = -INF
-	var keep_lo = INF  # t-extent of probes that must stay silhouette: exposed
-	var keep_hi = -INF # (nothing behind the ink) OR a real step (covered, wrong depth)
+	var keep_lo = INF
+	var keep_hi = -INF
+	
 	for i in range(0, probes.size(), 5):
 		var from = Vector2(probes[i + 2], probes[i + 3]) + to_b + out
 		var sb = MeshDepth.first_covered(b.depth, b.region_size, from, out, SLOP_PX - 1)
+		
 		if sb == null:
-			keep_lo = minf(keep_lo, probes[i])   # exposed: nothing behind the ink
-			keep_hi = maxf(keep_hi, probes[i + 1])
-			continue
-		var nb = MeshDepth.at(b.depth, b.region_size, sb)
-		var wa = probes[i + 4]
-		if absf(wa - (nb.x + shift)) > DEPTH_TOL and absf(wa - (nb.y + shift)) > DEPTH_TOL:
-			# covered but at a different depth (a real step): keep it too, and
-			# block the edge-end bridge below like an exposed probe would —
-			# otherwise a real step with no exposed probes in it (e.g. backed
-			# by more geometry further behind) gets silently dropped from both
-			# sets and the bridge erases straight through it.
 			keep_lo = minf(keep_lo, probes[i])
 			keep_hi = maxf(keep_hi, probes[i + 1])
 			continue
+			
+		var nb = MeshDepth.at(b.depth, b.region_size, sb)
+		var wa = probes[i + 4]
+		
+		# Standard DEPTH_TOL check
+		if absf(wa - (nb.x + shift)) > DEPTH_TOL and absf(wa - (nb.y + shift)) > DEPTH_TOL:
+			keep_lo = minf(keep_lo, probes[i])
+			keep_hi = maxf(keep_hi, probes[i + 1])
+			continue
+			
 		lo = minf(lo, probes[i])
 		hi = maxf(hi, probes[i + 1])
-
-	if lo > hi: return null
-	# Reach the edge end across probes the contact fell short of, UNLESS a kept
-	# (exposed or real-step) probe sits in that gap — that gap is real
-	# silhouette (a neighbour too low/short/far to back the ink, or a genuine
-	# step), not just corner rounding or depth jitter.
-	return Vector2(0.0 if keep_lo >= lo else lo, 1.0 if keep_hi <= hi else hi)
+		
+	if lo > hi:
+		return null
+		
+	var span_lo = 0.0 if keep_lo >= lo else lo
+	var span_hi = 1.0 if keep_hi <= hi else hi
+	
+	# Force the outline to drop an extra pixel specifically for the W edge (5)
+	# meeting a SW neighbor (x == 0, z == 1) during a partial occlusion.
+	if d == 5 and off.x == 0 and off.z == 1 and span_lo > 0.0:
+		span_lo = minf(span_lo + 0.04, span_hi)
+		
+	return Vector2(span_lo, span_hi)
 
 static func _zero_spans() -> Array:
 	var out := []
