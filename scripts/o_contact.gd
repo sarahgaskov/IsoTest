@@ -185,11 +185,16 @@ static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: 
 
 	var runs := []
 	var cur: Vector2 = Vector2(INF, -INF)
+		
 	for e in entries:
 		if e.z == 0.0:
-			if cur.x <= cur.y: runs.append(cur)
-			cur = Vector2(INF, -INF)
+			# if cur.x <= cur.y: runs.append(cur)
+			# cur = Vector2(INF, -INF)
+			# Ensure the border is OFF during the interleaving check
+			# by allowing the contact run to bridge across keep probes.
+			#TODO: Add back if figure out how to make the right side hidden
 			continue
+				
 		if cur.x > cur.y:
 			cur = Vector2(e.x, e.y)
 		elif e.x <= cur.y + GAP:
@@ -197,7 +202,9 @@ static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: 
 		else:
 			runs.append(cur)
 			cur = Vector2(e.x, e.y)
-	if cur.x <= cur.y: runs.append(cur)
+				
+	if cur.x <= cur.y:
+		runs.append(cur)
 
 	var out_runs := []
 	for idx in runs.size():
