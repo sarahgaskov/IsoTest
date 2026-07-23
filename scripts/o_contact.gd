@@ -20,6 +20,19 @@ const DEPTH_TOL = 1.23  # world-unit slack for "surfaces touch" — kept tight, 
 const GAP = 0.42       # merge contact runs separated by less than this
 const MIN_SPAN = 0.51   # a run must outlast a corner-touch halo to be contact
 
+# The very first/last probe of an edge sits exactly at a silhouette VERTEX
+# (shared with the adjacent edge), where the outward search can miss the
+# neighbour's coverage by a single rasterized pixel even when every other
+# probe along the same edge matches perfectly (e.g. two identical cubes in a
+# straight row: 25 of 26 probes read as tight CONTACT, but the very last one —
+# the bottom corner pixel — reads EXPOSED, blocking the bridge to 1.0 and
+# leaving a ~1%-of-edge sliver of outline behind at every such junction). This
+# is corner-pixel jitter, not real silhouette, so the edge-end bridge below
+# tolerates a keep-probe within CORNER_EPS of the contact zone's own end
+# instead of requiring an exact match. Kept much smaller than any genuine
+# exposure region seen in this pipeline (all comfortably >0.15 wide).
+const CORNER_EPS = 0.05
+
 # The 26 surrounding cell offsets (3x3x3 minus the center), built once.
 static var _offsets: Array = []
 static var _cache := {}
@@ -151,8 +164,8 @@ static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: 
 	if lo > hi:
 		return null
 		
-	var span_lo = 0.0 if keep_lo >= lo else lo
-	var span_hi = 1.0 if keep_hi <= hi else hi
+	var span_lo = 0.0 if keep_lo >= lo - CORNER_EPS else lo
+	var span_hi = 1.0 if keep_hi <= hi + CORNER_EPS else hi
 	
 	# Force the outline to drop an extra pixel specifically for the W edge (5)
 	# meeting a SW neighbor (x == 0, z == 1) during a partial occlusion.
