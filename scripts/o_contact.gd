@@ -120,43 +120,51 @@ static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dict
 		var screen = Vector2(world.dot(f.x), -world.dot(f.y)) / Iso.PIXEL_SCALE
 		var shift = world.dot(-f.z)
 		for d in 6:
-			# Pass the 'off' parameter down to _span
-			var s = _span(a, b, d, screen, shift, off, ramp_bridge)
-			if s != null:
-				runs[d].append(s)
-				
+			runs[d].append_array(_span(a, b, d, screen, shift, off, ramp_bridge))
 	_cache[key] = runs
 	return runs
 
-# Contact span along edge d of a, against b sitting `screen` pixels away and
+# Contact span(s) along edge d of a, against b sitting `screen` pixels away and
 # `shift` world units deeper. Each probe is a silhouette point of the edge with
 # the [t_lo,t_hi] range of mask pixels that walk to it: the outward side must be
 # covered by b (a surface merely ending at the line leaves the outline exposed),
 # and it contacts when a's surface depth matches b's front OR back surface,
 # within what the probe distance can explain by surface slope. A contacting
 # probe erases its whole t range.
-static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: float, off: Vector3i, ramp_bridge: bool = false) -> Variant:
+#
+# Contact and keep (exposed/depth-mismatch) probes can interleave along one
+# edge — e.g. a staircase against a smoothly-sloped neighbor, where each
+# tread's depth briefly, coincidentally crosses the slope's depth once per
+# step. Bounding ALL contact probes by a single min/max would fuse those
+# pinpoint coincidences into one giant erased span, swallowing the real
+# DEPTH_TOL-failing evidence sitting between them. So probes are sorted by t
+# and walked in order: a run of contact extends across a probe-density gap
+# (<= GAP) only when nothing was observed in that gap, and breaks the moment
+# real keep evidence is seen — never merging across an observed non-contact.
+static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: float, off: Vector3i, ramp_bridge: bool = false) -> Array:
 	if (a.present & (1 << d)) == 0:
-		return null
-		
+		return []
+
 	var out: Vector2 = a.out[d]
 	var probes: PackedFloat32Array = a.probes[d]
 	var to_b: Vector2 = b.origin - a.origin - screen
-	
-	var lo = INF
-	var hi = -INF
+
+	var entries := []
 	var keep_lo = INF
 	var keep_hi = -INF
-	
+
 	for i in range(0, probes.size(), 5):
 		var from = Vector2(probes[i + 2], probes[i + 3]) + to_b + out
 		var sb = MeshDepth.first_covered(b.depth, b.region_size, from, out, SLOP_PX - 1)
-		
+		var t_lo = probes[i]
+		var t_hi = probes[i + 1]
+
 		if sb == null:
-			keep_lo = minf(keep_lo, probes[i])
-			keep_hi = maxf(keep_hi, probes[i + 1])
+			keep_lo = minf(keep_lo, t_lo)
+			keep_hi = maxf(keep_hi, t_hi)
+			entries.append(Vector3(t_lo, t_hi, 0.0))
 			continue
-			
+
 		var nb = MeshDepth.at(b.depth, b.region_size, sb)
 		var wa = probes[i + 4]
 
@@ -164,25 +172,48 @@ static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: 
 		# the neighbor is understood to continue the same ramp regardless of
 		# per-step depth jaggedness (touching is enough).
 		if not ramp_bridge and absf(wa - (nb.x + shift)) > DEPTH_TOL and absf(wa - (nb.y + shift)) > DEPTH_TOL:
-			keep_lo = minf(keep_lo, probes[i])
-			keep_hi = maxf(keep_hi, probes[i + 1])
+			keep_lo = minf(keep_lo, t_lo)
+			keep_hi = maxf(keep_hi, t_hi)
+			entries.append(Vector3(t_lo, t_hi, 0.0))
 			continue
-			
-		lo = minf(lo, probes[i])
-		hi = maxf(hi, probes[i + 1])
-		
-	if lo > hi:
-		return null
-		
-	var span_lo = 0.0 if keep_lo >= lo - CORNER_EPS else lo
-	var span_hi = 1.0 if keep_hi <= hi + CORNER_EPS else hi
-	
-	# Force the outline to drop an extra pixel specifically for the W edge (5)
-	# meeting a SW neighbor (x == 0, z == 1) during a partial occlusion.
-	if d == 5 and off.x == 0 and off.z == 1 and span_lo > 0.0:
-		span_lo = minf(span_lo + 0.04, span_hi)
-		
-	return Vector2(span_lo, span_hi)
+
+		entries.append(Vector3(t_lo, t_hi, 1.0))
+
+	if entries.is_empty():
+		return []
+	entries.sort_custom(func(x, y): return x.x < y.x)
+
+	var runs := []
+	var cur: Vector2 = Vector2(INF, -INF)
+	for e in entries:
+		if e.z == 0.0:
+			if cur.x <= cur.y: runs.append(cur)
+			cur = Vector2(INF, -INF)
+			continue
+		if cur.x > cur.y:
+			cur = Vector2(e.x, e.y)
+		elif e.x <= cur.y + GAP:
+			cur.y = maxf(cur.y, e.y)
+		else:
+			runs.append(cur)
+			cur = Vector2(e.x, e.y)
+	if cur.x <= cur.y: runs.append(cur)
+
+	var out_runs := []
+	for idx in runs.size():
+		var r: Vector2 = runs[idx]
+		if r.y - r.x < MIN_SPAN:
+			continue
+		var span_lo = 0.0 if idx == 0 and keep_lo >= r.x - CORNER_EPS else r.x
+		var span_hi = 1.0 if idx == runs.size() - 1 and keep_hi <= r.y + CORNER_EPS else r.y
+
+		# Force the outline to drop an extra pixel specifically for the W edge (5)
+		# meeting a SW neighbor (x == 0, z == 1) during a partial occlusion.
+		if d == 5 and off.x == 0 and off.z == 1 and span_lo > 0.0:
+			span_lo = minf(span_lo + 0.04, span_hi)
+
+		out_runs.append(Vector2(span_lo, span_hi))
+	return out_runs
 
 static func _zero_spans() -> Array:
 	var out := []
