@@ -149,7 +149,14 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 	var offset = Vector2(off[0], off[1])
 	
 	var occ_faces = _faces(tile)
-	
+
+	# Highest point of the solid, in world units relative to the cell center.
+	# The keyhole uses cell_top = cell_center.y + top_offset to tell a wall that
+	# rises over an entity from a slab the entity is merely standing on.
+	var top_offset = 0.0
+	for i in occ_faces.size():
+		top_offset = maxf(top_offset, occ_faces[i].y)
+
 	# Inflate the faces slightly for the occlusion proxy
 	var inflate = Transform3D().scaled(Vector3(1.02, 1.02, 1.02))
 	for i in occ_faces.size():
@@ -210,6 +217,7 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 		"origin": MeshDepth.origin(size, offset),
 		"probes": probes,
 		"ramp_chain": _ramp_chain(tile),
+		"top_offset": top_offset,
 	}
 
 # For shader sampling (tolerant to import compression, works in exports too).
@@ -344,17 +352,25 @@ func _refresh_sprites() -> void:
 		mi.mesh = type.mesh
 		mi.material_override = type.mat
 		mi.position = map_to_local(c)
-		_apply_occlusion(mi, c)
+		_apply_occlusion(mi, c, type)
 	_occ_hash = cells.hash()
 
 # Detect where the cell touches neighbors, then hand the result to the shader.
-func _apply_occlusion(mi: MeshInstance3D, cell: Vector3i) -> void:
+func _apply_occlusion(mi: MeshInstance3D, cell: Vector3i, type: Dictionary) -> void:
 	var contact = OcclusionContact.resolve(self, cell, _types)
 	var s: Array = contact.spans
 	mi.set_instance_shader_parameter("neighbors", contact.neighbors)
 	mi.set_instance_shader_parameter("range01", Vector4(s[0].x, s[0].y, s[1].x, s[1].y))
 	mi.set_instance_shader_parameter("range23", Vector4(s[2].x, s[2].y, s[3].x, s[3].y))
 	mi.set_instance_shader_parameter("range45", Vector4(s[4].x, s[4].y, s[5].x, s[5].y))
+	# Keyhole inputs, both in world space so they compare against the tracked
+	# entity (Level._process). tile_depth: cell center projected onto the camera
+	# z axis — greater = closer to camera, so the shader fades only tiles in
+	# front of the entity. tile_top: the solid's highest point, so a slab the
+	# entity stands on (top at its feet) is spared while a wall over it fades.
+	var center := to_global(map_to_local(cell))
+	mi.set_instance_shader_parameter("tile_depth", center.dot(Iso.facing().z))
+	mi.set_instance_shader_parameter("tile_top", center.y + type.top_offset)
 
 func _sprite_layer() -> Node3D:
 	var layer = get_node_or_null(^"SpriteLayer") as Node3D

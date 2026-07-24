@@ -31,3 +31,28 @@ window/stretch/scale_mode="integer"
 
 textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"
+
+[shader_globals]
+
+keyhole_data={
+"filter": "nearest",
+"repeat": "disable",
+"type": "sampler2D",
+"value": "res://icon.svg"
+}
+keyhole_count={
+"type": "int",
+"value": 0
+}
+keyhole_radius={
+"type": "float",
+"value": 46.0
+}
+keyhole_fade={
+"type": "float",
+"value": 24.0
+}
+keyhole_min_alpha={
+"type": "float",
+"value": 0.0
+}

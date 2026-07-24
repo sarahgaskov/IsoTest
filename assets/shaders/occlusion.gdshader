@@ -1,5 +1,9 @@
 shader_type spatial;
-render_mode unshaded, cull_disabled;
+// depth_prepass_alpha: opaque interiors write depth in a pre-pass (so tile-vs-tile
+// and tile-vs-player sorting stays correct), while the semi-transparent keyhole
+// fringe blends smoothly over whatever is behind it. This is what lets the
+// occluder fade out with distance instead of hard-cutting or dithering.
+render_mode unshaded, cull_disabled, depth_prepass_alpha;
 
 // Sprite + its occlusion mask (same region, same UVs).
 uniform sampler2D albedo_tex : source_color, filter_nearest;
@@ -15,6 +19,26 @@ instance uniform int neighbors;
 instance uniform vec4 range01;
 instance uniform vec4 range23;
 instance uniform vec4 range45;
+
+// Iso depth of this cell's center (world · camera_z_axis); greater = closer to
+// camera. And the tile's highest world-space Y (its solid top). Both set by
+// iso_grid._apply_occlusion, and together decide keyhole eligibility.
+instance uniform float tile_depth = 0.0;
+instance uniform float tile_top = 0.0;
+
+// Keyhole globals — written every frame by Level (scripts/level.gd).
+// keyhole_data is an 8x1 RGBAF texture: texel i = (screen_x_px, screen_y_px,
+// entity_iso_depth, entity_feet_world_y). Screen coords share FRAGCOORD's origin.
+global uniform int keyhole_count;
+global uniform sampler2D keyhole_data;
+global uniform float keyhole_radius;    // fully-revealed inner radius, px
+global uniform float keyhole_fade;      // gradient width past the radius, px
+global uniform float keyhole_min_alpha; // opacity an occluder keeps at the center
+
+// A tile must rise at least this far above the entity's feet to count as an
+// occluder — keeps ground tiles the entity walks among (same level, in front)
+// from being erased; only things that actually stand over it fade.
+const float KEY_TOP_MARGIN = 1.0;
 
 int decode_dir(vec3 c) {
 	bool r = c.r > 0.5, g = c.g > 0.5, b = c.b > 0.5;
@@ -52,7 +76,6 @@ void fragment() {
 	vec4 tex = texture(albedo_tex, UV);
 	ALBEDO = tex.rgb;
 	ALPHA = tex.a;
-	ALPHA_SCISSOR_THRESHOLD = 0.5;
 
 	int d = decode_dir(texture(mask_tex, UV).rgb);
 	if (d >= 0 && (neighbors & (1 << d)) != 0) {
@@ -63,5 +86,27 @@ void fragment() {
 		vec2 span = range_for(d);
 		if (t >= span.x && t <= span.y)
 			ALPHA = 0.0; // outline pixel is backed by the neighbor: erase it
+	}
+
+	// Keyhole reveal. A tile is eligible only when it stands between the camera
+	// and an entity: closer than the entity in iso depth AND tall enough to rise
+	// over the entity's feet. Eligible tiles fade toward keyhole_min_alpha within
+	// keyhole_radius of the entity's screen position, easing out over keyhole_fade.
+	if (keyhole_count > 0) {
+		float reveal = 0.0;
+		for (int i = 0; i < keyhole_count; i++) {
+			// texel: (screen_x_px, screen_y_px, entity_iso_depth, entity_feet_y)
+			vec4 kd = texelFetch(keyhole_data, ivec2(i, 0), 0);
+			if (tile_depth <= kd.z) continue;               // behind the entity
+			if (tile_top <= kd.w + KEY_TOP_MARGIN) continue; // too low to occlude it
+			// Snap the disc center to the art-pixel grid (FRAGCOORD is 1 unit per
+			// render pixel here) so the gradient locks to whole pixels and steps
+			// in whole pixels as the entity moves, instead of crawling sub-pixel.
+			vec2 center = floor(kd.xy) + 0.5;
+			float dist = length(FRAGCOORD.xy - center);
+			// Smooth per-pixel falloff: one continuous alpha value per art pixel.
+			reveal = max(reveal, 1.0 - smoothstep(keyhole_radius, keyhole_radius + keyhole_fade, dist));
+		}
+		ALPHA *= 1.0 - reveal * (1.0 - keyhole_min_alpha);
 	}
 }
