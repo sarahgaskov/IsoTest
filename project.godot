@@ -56,3 +56,7 @@ keyhole_min_alpha={
 "type": "float",
 "value": 0.0
 }
+keyhole_above_reach={
+"type": "float",
+"value": 40.0
+}

@@ -2,6 +2,9 @@
 extends RefCounted
 class_name OcclusionMaskBaker
 
+# Bakes the hand-painted occlusion masks into per-tile edge segments.
+# See docs/outline_occlusion.md.
+
 # Direction colors on the mask, clockwise from top-left: NW NE E SE SW W.
 const DIR_COLORS = [
 	Color(1, 0, 0), Color(0, 1, 0), Color(0, 1, 1),
@@ -9,8 +12,7 @@ const DIR_COLORS = [
 ]
 
 # Baked contact data for every tile on a sheet, rebaking only when the mask
-# changed. Returns one dict per region: {edges, out, present}, or [] when the
-# sheet has no mask.
+# changed. One dict per region: {edges, out, present}, or [] with no mask.
 static func ensure(sheet_path: String, regions: Array) -> Array:
 	var mask_path = _sibling(sheet_path, "_o.png")
 	if not FileAccess.file_exists(mask_path):
@@ -39,12 +41,11 @@ static func _bake(mask_path: String, regions: Array) -> Array:
 	var tiles = []
 	for r in regions:
 		var rect = Rect2i(int(r[0]), int(r[1]), int(r[2]), int(r[3]))
-		var sub = img.get_region(rect)
+		var bands = region_pixels(img, rect)
 		var edges = {}
 		for d in DIR_COLORS.size():
-			var pts = _pixels(sub, DIR_COLORS[d])
-			if pts.size() >= 2:
-				var seg = _farthest_pair(pts)
+			if bands[d].size() >= 2:
+				var seg = _farthest_pair(bands[d])
 				edges[str(d)] = [seg[0].x, seg[0].y, seg[1].x, seg[1].y]
 		tiles.append({"region": [rect.size.x, rect.size.y], "edges": edges})
 	return tiles
@@ -64,18 +65,11 @@ static func region_pixels(img: Image, region: Rect2i) -> Array:
 	for y in sub.get_height():
 		for x in sub.get_width():
 			var c = sub.get_pixel(x, y)
+			if c.r + c.g + c.b < 0.5: continue  # unpainted, the common case
 			for d in DIR_COLORS.size():
 				if c.is_equal_approx(DIR_COLORS[d]):
 					out[d].append(Vector2(x, y))
 					break
-	return out
-
-static func _pixels(img: Image, col: Color) -> Array:
-	var out = []
-	for y in img.get_height():
-		for x in img.get_width():
-			if img.get_pixel(x, y).is_equal_approx(col):
-				out.append(Vector2(x, y))
 	return out
 
 # Endpoints of a band = the two pixels farthest apart within it.

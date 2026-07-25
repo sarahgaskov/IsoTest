@@ -1,6 +1,6 @@
 # Mesh-driven outline occlusion — implementation plan
 
-> **STATUS: IMPLEMENTED** (see `docs/occlusion.md` for the living reference).
+> **STATUS: IMPLEMENTED** (see `docs/outline_occlusion.md` for the living reference).
 > Verified by `tools/occ_diag.gd`: span table matches §5's sanity values and
 > the per-pixel + composited output of `scenes/level.tscn` is identical to the
 > all-or-nothing baseline (0 px diff). Two deviations from this plan:

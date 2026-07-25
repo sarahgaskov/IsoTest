@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://bint0one00001"]
+
+; Drop one of these over a building and drag the box (the CollisionShape3D gizmo)
+; to cover its interior volume. Any tile whose cell center falls inside — and
+; that sits above the player's head — is cut away completely so you can see in.
+; It is a plain marker: no physics, detected by iso_grid via the "interior" group.
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_int"]
+size = Vector3(72, 48, 72)
+
+[node name="InteriorZone" type="Area3D" groups=["interior"]]
+monitoring = false
+monitorable = false
+collision_layer = 0
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_int")

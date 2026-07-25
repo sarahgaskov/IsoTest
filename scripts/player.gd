@@ -8,6 +8,9 @@ class_name Player
 # Collision is handled by move_and_slide (slopes are walkable under floor_max_angle);
 # short vertical steps — stair risers, a slab_1 lip — are climbed by a small
 # step-up assist. Anything taller than max_step_px reads as a wall and blocks.
+#
+# The capsule in level.tscn is 1.8 grid layers tall; keep Level.keyhole_body_layers
+# in sync with it so the transparency disc stays centered on the body.
 
 ## Ground speed in world units per second.
 @export var speed: float = 42.0
@@ -15,9 +18,7 @@ class_name Player
 ## Downward acceleration in world units per second².
 @export var gravity: float = 240.0
 
-## Tallest step the player can climb, in art pixels. slab_1 is ~4 px tall, so 5
-## gives it "slab_1 with some leeway". Converted to world units via the same
-## vertical scale the tiles use (Iso.cell().y / Iso.UNIT).
+## Tallest step the player can climb, in art pixels (slab_1 is ~4 px tall).
 @export var max_step_px: float = 5.0
 
 var _max_step: float  # max_step_px in world units, resolved in _ready

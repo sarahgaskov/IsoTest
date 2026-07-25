@@ -2,8 +2,12 @@
 extends GridMap
 class_name IsoGrid
 
+# The grid, the sprite layer, and the tile-type cache the occlusion and keyhole
+# systems feed on. See docs/outline_occlusion.md and docs/player_transparency.md.
+
 const LIB_PATH = "res://assets/mesh_lib/tiles.tres"
 const OCC_SHADER = preload("res://assets/shaders/occlusion.gdshader")
+const INFLATE = 1.02  # occlusion proxy scale, to close raster hairlines
 
 ## Tilesheet regions rigged to .obj files (may reference several tilesheets)
 @export_file("*.json") var config = "res://tiles.json"
@@ -38,6 +42,8 @@ const OCC_SHADER = preload("res://assets/shaders/occlusion.gdshader")
 
 var _wire_hash = 0
 var _occ_hash = 0
+var _zone_hash = 0
+var _int_zones := []      # [{inv: Transform3D, ext: Vector3}] interior box zones
 var _types := {}          # cell item id -> {mesh, mat, edges, out, present}
 var _blank_mask: ImageTexture
 
@@ -48,9 +54,7 @@ func _ready() -> void:
 	_refresh_floor()
 	_refresh_wire()
 
-# Refresh the sprite layer from the placed cells, without touching the saved
-# mesh library (so it is safe at runtime, unlike rebuild()). Render types are
-# built lazily by _refresh_sprites, so only placed tiles pay for it.
+# Runtime-safe refresh: rebuilds the sprite layer without writing to disk.
 func _setup() -> void:
 	_types = {}
 	OcclusionContact.clear()
@@ -58,8 +62,7 @@ func _setup() -> void:
 	_occ_hash = 0
 	_refresh_sprites()
 
-# Drop the placed-cell meshes so GridMap draws only collision; the sprite layer
-# owns the visuals. In-memory only, so the saved library is left untouched.
+# Drop the placed-cell meshes (in memory only) so GridMap draws only collision.
 func _mute_library() -> void:
 	if mesh_library == null: return
 	for id in mesh_library.get_item_list():
@@ -72,7 +75,8 @@ func _process(_delta: float) -> void:
 	var h = get_used_cells().hash()
 	if show_wireframe and h != _wire_hash:
 		_refresh_wire()
-	if not show_3d and h != _occ_hash:
+	# Re-sprite when the cells change or an interior zone is moved/resized.
+	if not show_3d and (h != _occ_hash or _zones_hash() != _zone_hash):
 		_refresh_sprites()
 
 func rebuild() -> void:
@@ -87,9 +91,8 @@ func rebuild() -> void:
 	var sheets: Array = paths.map(func(p): return load(p) as Texture2D)
 	var lib = _fresh_library()
 
-	# GridMap keeps the collision and the palette preview; the sprites
-	# themselves are drawn by the occlusion layer (see _refresh_sprites),
-	# so placed cells carry a mesh only in the 3D debug view.
+	# GridMap keeps collision + palette preview; placed cells carry a mesh only
+	# in the 3D debug view.
 	for id in data.tiles.size():
 		var tile: Dictionary = data.tiles[id]
 		lib.create_item(id)
@@ -113,9 +116,8 @@ func rebake() -> void:
 		if FileAccess.file_exists(cache): DirAccess.remove_absolute(ProjectSettings.globalize_path(cache))
 	rebuild()
 
-# Build the render type for each requested tile id into _types (additive, so
-# a rebuild only pays for what is placed). Rasterizing a mesh and walking its
-# contact probes is the pipeline's one heavy step, so unused tiles never do it.
+# Build the render type for each requested tile id into _types, additively:
+# rasterizing a mesh and walking its probes is the pipeline's one heavy step.
 func _build_types(want: Array) -> void:
 	if want.is_empty(): return
 	var data = JSON.parse_string(FileAccess.get_file_as_string(config))
@@ -125,8 +127,7 @@ func _build_types(want: Array) -> void:
 		var ids := want.filter(func(id): return data.tiles[id].get("sheet", 0) == si)
 		if ids.is_empty(): continue
 
-		# ensure() bakes/validates the whole sheet at once, so hand it every
-		# region even when only some tiles are wanted this call.
+		# ensure() validates a whole sheet at once, so hand it every region.
 		var all := []
 		var pos := {}
 		for id in data.tiles.size():
@@ -150,18 +151,13 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 	
 	var occ_faces = _faces(tile)
 
-	# Highest point of the solid, in world units relative to the cell center.
-	# The keyhole uses cell_top = cell_center.y + top_offset to tell a wall that
-	# rises over an entity from a slab the entity is merely standing on.
-	var top_offset = 0.0
+	# The solid's cameraward corner (max x, y, z), relative to the cell center:
+	# +X, +Y and +Z all point toward the fixed iso camera. Keyhole input.
+	var near_offset = occ_faces[0] if occ_faces.size() > 0 else Vector3.ZERO
 	for i in occ_faces.size():
-		top_offset = maxf(top_offset, occ_faces[i].y)
+		near_offset = near_offset.max(occ_faces[i])
+		occ_faces[i] = occ_faces[i] * INFLATE  # widen the occlusion proxy a hair
 
-	# Inflate the faces slightly for the occlusion proxy
-	var inflate = Transform3D().scaled(Vector3(1.02, 1.02, 1.02))
-	for i in occ_faces.size():
-		occ_faces[i] = inflate * occ_faces[i]
-	
 	var depth = MeshDepth.rasterize(occ_faces, size, offset)
 
 	var edges: Array = baked.get("edges", _zeros(Vector4.ZERO)).duplicate()
@@ -169,12 +165,7 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 	var present = baked.get("present", 0)
 	var region_px = OcclusionMaskBaker.region_pixels(raw if raw else mask, Rect2i(region))
 
-	# Contact probes: walk every mask pixel of each edge inward to this tile's
-	# own silhouette, then collapse the pixels that share a silhouette point
-	# into one probe [t_lo, t_hi, s.x, s.y, front depth]. t is the pixel's
-	# position along the baked mask edge — the projection the shader redoes —
-	# so a fully-contacted band erases across its whole painted length; the
-	# collapse keeps the depth test O(silhouette) not O(mask pixels).
+	# One probe [t_lo, t_hi, s.x, s.y, front depth] per distinct silhouette point.
 	var probes := []
 	for d in 6:
 		var e0 = Vector2(edges[d].x, edges[d].y)
@@ -217,10 +208,10 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 		"origin": MeshDepth.origin(size, offset),
 		"probes": probes,
 		"ramp_chain": _ramp_chain(tile),
-		"top_offset": top_offset,
+		"near_offset": near_offset,
 	}
 
-# For shader sampling (tolerant to import compression, works in exports too).
+# For shader sampling: goes through the resource system, so exports work.
 func _load_mask(sheet_path: String) -> Image:
 	var p = "%s/occlusion/%s_o.png" % [sheet_path.get_base_dir(), sheet_path.get_file().get_basename()]
 	if ResourceLoader.exists(p):
@@ -248,10 +239,8 @@ const ROT = {"n": 0.0, "e": -PI / 2, "s": PI, "w": PI / 2}
 # (ascending toward -Z), rotated per "rot" the same way _faces() rotates the mesh.
 const RAMP_DIR = {"n": Vector2i(0, -1), "e": Vector2i(1, 0), "s": Vector2i(0, 1), "w": Vector2i(-1, 0)}
 
-# A plain stairs/slope tile climbs one full cell height across its own
-# footprint, so the next tile continuing the same ramp sits one cell further
-# along the ascent direction AND one cell up. Corner pieces (bidirectional
-# apex, no single ascent direction) are intentionally excluded.
+# Offset to the cell that continues the same ramp: one along, one up. Corner
+# pieces have no single ascent direction and are excluded.
 func _ramp_chain(tile: Dictionary) -> Variant:
 	var name: String = tile.name
 	if not (name.begins_with("stairs_") or name.begins_with("slope_")):
@@ -260,23 +249,15 @@ func _ramp_chain(tile: Dictionary) -> Variant:
 	return Vector3i(dir.x, 1, dir.y)
 
 # The tile's mesh triangles in cell space, rotated to its facing.
-# scripts/iso_grid.gd
-
 func _faces(tile: Dictionary) -> PackedVector3Array:
 	var faces = (load(tile.mesh) as Mesh).get_faces()
 	var yaw: float = ROT[tile.get("rot", "n")]
-	
+	var basis = Basis(Vector3.UP, yaw) if yaw != 0.0 else Basis()
 	var y_scale = Iso.cell().y / Iso.UNIT
-	
-	var basis = Basis()
-	if yaw != 0.0:
-		basis = Basis(Vector3.UP, yaw)
-		
 	for i in faces.size():
 		var v = basis * faces[i]
 		v.y *= y_scale
 		faces[i] = v
-		
 	return faces
 
 # The raw .obj shaded with a flat color per face, for reading geometry.
@@ -312,8 +293,7 @@ func _quad(tile: Dictionary) -> QuadMesh:
 
 # = OCCLUSION LAYER =
 
-# One billboard per used cell, reusing its type's shader material and carrying
-# its own neighbor / contact data as instance parameters.
+# One billboard per used cell, carrying its own contact/keyhole instance params.
 func _refresh_sprites() -> void:
 	if not is_inside_tree(): return
 	var layer = _sprite_layer()
@@ -332,14 +312,14 @@ func _refresh_sprites() -> void:
 		if wanted.has(cell): existing[cell] = child
 		else: child.free()
 
-	# Build only the types actually on the map (their neighbours count too, so
-	# resolve can read them), skipping the heavy work for every unused tile.
+	# Build only the types actually on the map.
 	var missing := {}
 	for c in cells:
 		var id = get_cell_item(c)
 		if id != GridMap.INVALID_CELL_ITEM and not _types.has(id): missing[id] = true
 	_build_types(missing.keys())
 
+	_int_zones = InteriorZones.collect(get_tree())
 	for c in cells:
 		var type = _types.get(get_cell_item(c))
 		if type == null: continue
@@ -354,6 +334,7 @@ func _refresh_sprites() -> void:
 		mi.position = map_to_local(c)
 		_apply_occlusion(mi, c, type)
 	_occ_hash = cells.hash()
+	_zone_hash = _zones_hash()
 
 # Detect where the cell touches neighbors, then hand the result to the shader.
 func _apply_occlusion(mi: MeshInstance3D, cell: Vector3i, type: Dictionary) -> void:
@@ -363,14 +344,14 @@ func _apply_occlusion(mi: MeshInstance3D, cell: Vector3i, type: Dictionary) -> v
 	mi.set_instance_shader_parameter("range01", Vector4(s[0].x, s[0].y, s[1].x, s[1].y))
 	mi.set_instance_shader_parameter("range23", Vector4(s[2].x, s[2].y, s[3].x, s[3].y))
 	mi.set_instance_shader_parameter("range45", Vector4(s[4].x, s[4].y, s[5].x, s[5].y))
-	# Keyhole inputs, both in world space so they compare against the tracked
-	# entity (Level._process). tile_depth: cell center projected onto the camera
-	# z axis — greater = closer to camera, so the shader fades only tiles in
-	# front of the entity. tile_top: the solid's highest point, so a slab the
-	# entity stands on (top at its feet) is spared while a wall over it fades.
+	# Keyhole input, in world space so it compares against the tracked entity.
 	var center := to_global(map_to_local(cell))
-	mi.set_instance_shader_parameter("tile_depth", center.dot(Iso.facing().z))
-	mi.set_instance_shader_parameter("tile_top", center.y + type.top_offset)
+	mi.set_instance_shader_parameter("tile_near", center + type.near_offset)
+	mi.set_instance_shader_parameter("tile_layer", float(cell.y))
+	mi.set_instance_shader_parameter("tile_zones", InteriorZones.mask_at(_int_zones, center))
+
+func _zones_hash() -> int:
+	return InteriorZones.hash_of(get_tree())
 
 func _sprite_layer() -> Node3D:
 	var layer = get_node_or_null(^"SpriteLayer") as Node3D
@@ -411,11 +392,8 @@ func _region(tile: Dictionary) -> Rect2:
 
 # = IN-EDITOR Helpers =
 
-# Snap the editor viewport to the game's isometric view: switch it to
-# orthogonal through its own view menu, then move its camera; the editor
-# adopts an externally moved camera into its orbit cursor (pivot included),
-# so navigation keeps working. In ortho the pivot is derived as
-# origin - basis.z * (far - near) / 2, hence the camera position below.
+# Switch the editor viewport to orthogonal via its own view menu, then place
+# its camera; in ortho the pivot is origin - basis.z * (far - near) / 2.
 func snap_editor_view() -> void:
 	if not Engine.is_editor_hint():
 		return
