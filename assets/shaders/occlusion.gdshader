@@ -24,6 +24,11 @@ instance uniform vec3 tile_near = vec3(0.0);
 instance uniform float tile_layer = 0.0;
 instance uniform int tile_zones = 0;
 
+// Per cell: its fade group, and 1.0 when the cell is that group's camera-facing
+// shell (0.0 for cells the group hides behind itself).
+instance uniform int tile_group = -1;
+instance uniform float tile_shell = 1.0;
+
 // Keyhole globals, written every frame by Level (scripts/level.gd).
 // keyhole_data is an 8x2 RGBAF texture: row 0 = (screen_x, screen_y,
 // floor_layer, zone_mask), row 1 = (far_x, feet_y, far_z, _).
@@ -34,12 +39,23 @@ global uniform float keyhole_fade;
 global uniform float keyhole_min_alpha;
 global uniform float keyhole_above_reach;
 
+// Per-group occlusion gate: an Nx1 R32F texture holding each group's smoothed
+// 0..1 fade, written by Level. keyhole_gate_enable blends the whole gate out
+// (0 = ignore it, reproducing the ungated behaviour exactly); keyhole_shell_cut
+// blends out the interior-cell cut the same way.
+global uniform sampler2D keyhole_groups;
+global uniform float keyhole_gate_enable;
+global uniform float keyhole_shell_cut;
+
 // World units a tile must reach past the entity's far corner on an axis before
 // it counts as a full occluder along it; below that the reveal ramps in.
 const float KEY_GATE_SOFT = 12.0;
 
 // Layers above the entity's floor at which a tile reads as overhead.
 const float KEY_ABOVE_LAYERS = 2.0;
+
+// How much of the shell's reveal is enough to clear a group's interior cells.
+const float KEY_SHELL_SHARPEN = 0.25;
 
 // Mask color -> direction index, or -1 for black/white (never erased).
 int decode_dir(vec3 c) {
@@ -102,15 +118,30 @@ void fragment() {
 		// A tile hides the entity only where it reaches past the entity's far
 		// corner on all three cameraward axes (+X, +Y, +Z) at once.
 		vec3 clear = smoothstep(vec3(0.0), vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
-		float gate = min(min(clear.x, clear.y), clear.z);
-		if (gate <= 0.0) continue;
+		float axis = min(min(clear.x, clear.y), clear.z);
+		if (axis <= 0.0) continue;
 
 		// Snap the disc center to the pixel grid so the gradient steps in whole
 		// pixels as the entity moves.
 		vec2 center = floor(e0.xy) + 0.5;
 		float dist = length(FRAGCOORD.xy - center);
 		float reach = keyhole_fade + (above ? keyhole_above_reach : 0.0);
-		reveal = max(reveal, gate * (1.0 - smoothstep(keyhole_radius, keyhole_radius + reach, dist)));
+		reveal = max(reveal, axis * (1.0 - smoothstep(keyhole_radius, keyhole_radius + reach, dist)));
 	}
-	ALPHA = cut ? 0.0 : ALPHA * (1.0 - reveal * (1.0 - keyhole_min_alpha));
+
+	// Occlusion gate: this cell's wall only fades while some tile of it really
+	// covers a tracked entity on screen. Purely subtractive — gate 1.0 leaves
+	// the reveal above untouched.
+	float gate = 1.0;
+	if (tile_group >= 0)
+		gate = texelFetch(keyhole_groups, ivec2(tile_group, 0), 0).r;
+	gate = mix(1.0, gate, keyhole_gate_enable);
+
+	// The group's shell keeps the soft gradient; the cells it hides behind
+	// itself clear sooner, so the keyhole shows through the group rather than
+	// into its interior faces.
+	float shell = mix(1.0, tile_shell, keyhole_shell_cut);
+	float shell_alpha = 1.0 - reveal * (1.0 - keyhole_min_alpha);
+	float inner_alpha = 1.0 - smoothstep(0.0, KEY_SHELL_SHARPEN, reveal);
+	ALPHA = cut ? 0.0 : ALPHA * mix(1.0, mix(inner_alpha, shell_alpha, shell), gate);
 }

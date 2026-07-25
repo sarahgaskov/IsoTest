@@ -60,3 +60,17 @@ keyhole_above_reach={
 "type": "float",
 "value": 40.0
 }
+keyhole_groups={
+"filter": "nearest",
+"repeat": "disable",
+"type": "sampler2D",
+"value": "res://icon.svg"
+}
+keyhole_gate_enable={
+"type": "float",
+"value": 1.0
+}
+keyhole_shell_cut={
+"type": "float",
+"value": 1.0
+}

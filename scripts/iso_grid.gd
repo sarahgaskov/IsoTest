@@ -47,6 +47,13 @@ var _int_zones := []      # [{inv: Transform3D, ext: Vector3}] interior box zone
 var _types := {}          # cell item id -> {mesh, mat, edges, out, present}
 var _blank_mask: ImageTexture
 
+# Keyhole fade groups, baked by OccluderGroups whenever the sprites refresh.
+var _cell_group := {}     # Vector3i -> group index, -1 when ungrouped
+var _cell_shell := {}     # Vector3i -> bool, false for a group's interior cells
+var _group_count := 0
+var _cell_lo := Vector3i.ZERO
+var _cell_hi := Vector3i.ZERO
+
 func _ready() -> void:
 	cell_size = Iso.cell()
 	set_process(Engine.is_editor_hint())
@@ -320,6 +327,12 @@ func _refresh_sprites() -> void:
 	_build_types(missing.keys())
 
 	_int_zones = InteriorZones.collect(get_tree())
+	var occ = OccluderGroups.build(cells, self, OccluderGroups.collect_zones(get_tree()))
+	_cell_group = occ.group
+	_cell_shell = occ.shell
+	_group_count = occ.count
+	_cell_lo = occ.lo
+	_cell_hi = occ.hi
 	for c in cells:
 		var type = _types.get(get_cell_item(c))
 		if type == null: continue
@@ -349,9 +362,28 @@ func _apply_occlusion(mi: MeshInstance3D, cell: Vector3i, type: Dictionary) -> v
 	mi.set_instance_shader_parameter("tile_near", center + type.near_offset)
 	mi.set_instance_shader_parameter("tile_layer", float(cell.y))
 	mi.set_instance_shader_parameter("tile_zones", InteriorZones.mask_at(_int_zones, center))
+	# Fade group, and whether this cell is the group's camera-facing shell.
+	mi.set_instance_shader_parameter("tile_group", _cell_group.get(cell, -1))
+	mi.set_instance_shader_parameter("tile_shell", 1.0 if _cell_shell.get(cell, true) else 0.0)
 
 func _zones_hash() -> int:
 	return InteriorZones.hash_of(get_tree())
+
+# = KEYHOLE QUERY API (used by Level._process) =
+
+func group_count() -> int:
+	return _group_count
+
+func cell_group(cell: Vector3i) -> int:
+	return _cell_group.get(cell, -1)
+
+# The render type of a placed cell, or null when the cell is empty.
+func cell_type(cell: Vector3i) -> Variant:
+	return _types.get(get_cell_item(cell))
+
+# Inclusive cell-coordinate bounds of everything placed, to bound a ray walk.
+func cell_span() -> Array:
+	return [_cell_lo, _cell_hi]
 
 func _sprite_layer() -> Node3D:
 	var layer = get_node_or_null(^"SpriteLayer") as Node3D

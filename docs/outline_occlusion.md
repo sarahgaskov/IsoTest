@@ -386,8 +386,14 @@ The only bridge between contact detection and the shader. Calls
 - `neighbors` — the 6-bit mask of touched edges.
 - `range01`, `range23`, `range45` — the six `[t0, t1]` spans, packed two
   directions per `vec4` in index order.
-- `tile_near`, `tile_layer`, `tile_zones` — keyhole inputs, documented in
-  `player_transparency.md`.
+- `tile_near`, `tile_layer`, `tile_zones`, `tile_group`, `tile_shell` — keyhole
+  inputs, documented in `player_transparency.md`.
+
+`_refresh_sprites` also calls `OccluderGroups.build(cells)` and caches the result
+(`_cell_group`, `_cell_shell`, `_group_count`, `_cell_lo`, `_cell_hi`), which
+`_apply_occlusion` and the `group_count` / `cell_group` / `cell_type` / `cell_span`
+query API expose. That is keyhole machinery riding on the outline system's refresh
+trigger; it has no effect on outline erasing.
 
 ### `_sprite_layer()`
 Returns (creating once) the owner-less `SpriteLayer` child that holds every
@@ -552,6 +558,9 @@ doc.)
 ### Inputs
 Per **tile type** (`uniform`): `albedo_tex`, `mask_tex`, `edges[6]`.
 Per **cell** (`instance uniform`): `neighbors`, `range01`, `range23`, `range45`.
+The remaining five instance parameters (`tile_near`, `tile_layer`, `tile_zones`,
+`tile_group`, `tile_shell`) belong to the keyhole half and never affect the
+outline block.
 
 ### `vertex()`
 Billboards the quad to face the camera while keeping the mesh's own scale, so the
