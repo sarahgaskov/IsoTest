@@ -136,13 +136,19 @@ func _process(delta: float) -> void:
 		if not is_instance_valid(e):
 			continue
 		# The origin sits at the feet; the disc centers on the body's midpoint,
-		# while the far corner (west, north, feet height) is what tiles are
+		# while the far corner (west, north, footing height) is what tiles are
 		# depth-tested against.
 		var foot := e.global_position
 		var screen := camera.unproject_position(foot + mid)
-		var far := foot - Vector3(keyhole_body_radius, 0.0, keyhole_body_radius)
+		var layer := 0.0
+		var footing := foot.y
+		if _grid != null:
+			layer = float(_floor_cell(foot).y)
+			footing = _footing_y(foot)
+		var far := Vector3(foot.x - keyhole_body_radius, footing,
+			foot.z - keyhole_body_radius)
 		_data_image.set_pixel(count, 0, Color(screen.x, screen.y,
-			_floor_layer(foot), float(InteriorZones.mask_at(_zones, foot))))
+			layer, float(InteriorZones.mask_at(_zones, foot))))
 		_data_image.set_pixel(count, 1, Color(far.x, far.y, far.z, 0.0))
 		if gated:
 			_gather_occluders(camera, foot, mid.y * 2.0, hits)
@@ -256,12 +262,27 @@ func _advance_gates(hits: Dictionary, delta: float) -> void:
 	if dirty:
 		_gate_texture.update(_gate_image)
 
-# Grid layer of the tile the entity stands on; sampling just below the feet
-# lands inside the floor cell whether it is a full block or a shallow slab.
-func _floor_layer(foot: Vector3) -> float:
-	if _grid == null:
-		return 0.0
-	return float(_grid.local_to_map(_grid.to_local(foot - Vector3(0.0, 0.5, 0.0))).y)
+# Cell the entity is standing in; sampling just below the feet lands inside the
+# floor cell whether it is a full block, a shallow slab or a stair tread.
+func _floor_cell(foot: Vector3) -> Vector3i:
+	return _grid.local_to_map(_grid.to_local(foot - Vector3(0.0, 0.5, 0.0)))
+
+func _cell_top(cell: Vector3i) -> float:
+	return _grid.to_global(_grid.map_to_local(cell)).y + _grid.cell_size.y * 0.5
+
+# Height the entity's footing reaches up to. A tile's tile_near is the corner of
+# its bounding box, which for a ramp or staircase sits a whole cell above the
+# tread actually underfoot — so comparing against the raw feet lets the tile the
+# entity is standing on clear them and fade out from under it.
+#
+# On level ground the feet sit on a cell boundary and the cell they are "in" is
+# the empty one above the floor, so nothing changes. On a ramp that cell is the
+# solid tile itself, and taking its top makes the comparison exactly zero.
+func _footing_y(foot: Vector3) -> float:
+	var here := _grid.local_to_map(_grid.to_local(foot))
+	if _grid.get_cell_item(here) == GridMap.INVALID_CELL_ITEM:
+		return foot.y
+	return maxf(foot.y, _cell_top(here))
 
 func _push_tuning() -> void:
 	RenderingServer.global_shader_parameter_set(&"keyhole_radius", keyhole_radius)

@@ -305,10 +305,11 @@ The heart of the build. Step by step:
 1. `region` / `size` / `offset` — the tile's rectangle on the sheet and its
    authored pixel offset.
 2. `occ_faces = _faces(tile)` — the rotated, Y-scaled triangles.
-3. **`near_offset`** — the component-wise `max` over every vertex, i.e. the
-   corner of the solid that reaches farthest toward the camera on each axis
-   (`+X`, `+Y`, `+Z` all point cameraward in this fixed view). This is keyhole
-   input, not outline input; see `player_transparency.md` §5.
+3. **`near_offset`** — the solid's cameraward corner. X and Z are the
+   component-wise `max` over every vertex; Y is the height of the vertex nearest
+   the camera (max `v · Iso.facing().z`) rather than the bounding-box top, which
+   for a ramp floats in the air above its low end. This is keyhole input, not
+   outline input; see `player_transparency.md` §3.
 4. The same loop scales each vertex by `INFLATE`. Order matters: `near_offset` is
    taken from the *un*-inflated geometry, so the keyhole test stays honest.
 5. `depth = MeshDepth.rasterize(...)` — the per-pixel `[front, back]` buffer.

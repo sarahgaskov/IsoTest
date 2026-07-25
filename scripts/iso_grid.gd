@@ -158,12 +158,25 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 	
 	var occ_faces = _faces(tile)
 
-	# The solid's cameraward corner (max x, y, z), relative to the cell center:
-	# +X, +Y and +Z all point toward the fixed iso camera. Keyhole input.
-	var near_offset = occ_faces[0] if occ_faces.size() > 0 else Vector3.ZERO
+	# The solid's cameraward corner, relative to the cell center. X and Z take the
+	# bounding box, which the solid really does reach. Y instead takes the height
+	# of the vertex nearest the camera: a ramp's bounding-box top floats in the
+	# air above its low cameraward end, and testing against it makes the ramp fade
+	# while an entity stands at its foot. A cube's nearest vertex is its
+	# (max, max, max) corner, so cubes are unaffected. Keyhole input only.
+	var view := Iso.facing().z
+	var bounds := Vector3.ZERO
+	var near_y := 0.0
+	var near_depth := -INF
 	for i in occ_faces.size():
-		near_offset = near_offset.max(occ_faces[i])
-		occ_faces[i] = occ_faces[i] * INFLATE  # widen the occlusion proxy a hair
+		var v: Vector3 = occ_faces[i]
+		bounds = v if i == 0 else bounds.max(v)
+		var depth_v := v.dot(view)
+		if depth_v > near_depth:
+			near_depth = depth_v
+			near_y = v.y
+		occ_faces[i] = v * INFLATE  # widen the occlusion proxy a hair
+	var near_offset := Vector3(bounds.x, near_y, bounds.z)
 
 	var depth = MeshDepth.rasterize(occ_faces, size, offset)
 

@@ -76,12 +76,50 @@ So the test is a three-axis comparison between:
 - **`tile_near`** — the cameraward corner of the tile's solid (its max x, y, z),
   computed once per tile type in `IsoGrid._make_type` as `near_offset` and
   translated to world space per cell.
-- **the entity's far corner** — `(far_x, feet_y, far_z)`: the corner of the
+- **the entity's far corner** — `(far_x, footing_y, far_z)`: the corner of the
   entity's body volume turned *away* from the camera on each axis.
 
 A tile occludes when `tile_near > entity_far` on all three axes. The comparison is
 softened by `KEY_GATE_SOFT` so a tile that only just clears the entity ghosts
 rather than pops.
+
+### `tile_near` is a bounding-box corner, and that matters
+
+`near_offset` is the component-wise **max** over the tile mesh's vertices, so
+`tile_near` is a corner of the tile's bounding box — not necessarily a point on
+the tile's solid. For a cube the two coincide. For a **ramp or staircase they do
+not**: the high end is away from the camera and the near end is low, so the
+`(max_x, max_y, max_z)` corner sits in empty space above the tread.
+
+The Y half of the test is where this bites, and it takes **three** separate
+guards to make ramps behave:
+
+**1. `near_offset.y` is the height of the nearest vertex, not the bounding top.**
+X and Z still take the bounding box — the solid really does reach those. Y takes
+the Y of the vertex maximising `v · Iso.facing().z`, i.e. the point of the solid
+closest to the camera. For a cube that is the `(max, max, max)` corner, so cubes
+are unchanged. For a ramp *falling away* from the camera it is the low near end,
+so the ramp stops claiming to be a full cell tall at the point where it is
+actually flat. For a ramp *rising toward* the camera it is still the top, which is
+correct: such a ramp does occlude like a wall.
+
+Without this, standing at the foot of a `slope_n` fades it at `axis = 1.00` with
+`d.y = 19.6` — its bounding-box top floating a whole layer above the low end
+underfoot.
+
+**2. The entity's far corner uses a footing height, not the raw feet** (§4). A
+flat slab's top equals the feet exactly, so the slab underfoot is spared with a
+difference of zero — but a staircase's tread leaves the feet partway up the cell,
+and the cell top is what must be compared against.
+
+**3. `KEY_MIN_RISE` gives the Y axis a dead zone.** Even with (1), a staircase's
+*first tread* genuinely rises ~3.3 units above the floor at its foot, which used
+to ghost the whole tile at `axis = 0.18`. A tile must now clear the footing by
+more than `KEY_MIN_RISE` (5.0 world units, just above `Player.max_step_px`
+converted to world units) before it counts as an occluder at all. Anything
+shorter is a lip the entity could simply step onto, and hides nothing.
+
+All three are needed; each was found by a test that the previous two passed.
 
 ---
 
@@ -180,10 +218,10 @@ the body height. Then for each entity, up to `MAX_KEYHOLES`:
   rather than on the ground under them. `unproject_position` and the shader's
   `FRAGCOORD` share a top-left origin, so the projected point maps straight
   through with no Y flip.
-- `far` = `foot - (body_radius, 0, body_radius)` — the west/north/feet corner,
-  the corner turned away from the camera on each axis. Note the Y component stays
-  at the feet: the "is the tile above the entity's feet" half of the test is what
-  spares a slab the entity is standing on.
+- `far` = `(foot.x − body_radius, footing_y, foot.z − body_radius)` — the
+  west/north/footing corner, the corner turned away from the camera on each axis.
+  The Y component is `_footing_y(foot)`, not the raw feet; that is what spares the
+  tile the entity is standing on, ramps and staircases included.
 - Row 0 of column `count` is written as
   `Color(screen.x, screen.y, floor_layer, zone_mask)`.
 - Row 1 is written as `Color(far.x, far.y, far.z, 0)`.
@@ -203,10 +241,34 @@ ignores it anyway.
 
 Invalid instances are skipped but not pruned; `refresh()` is the pruning step.
 
-### `_floor_layer(foot) -> float`
-`_grid.local_to_map(_grid.to_local(foot - (0, 0.5, 0))).y`. Sampling half a unit
+### `_floor_cell(foot) -> Vector3i`
+`_grid.local_to_map(_grid.to_local(foot - (0, 0.5, 0)))`. Sampling half a unit
 *below* the feet lands inside the floor cell whether that cell is a full block or
-a shallow slab. Returns 0 when there is no `GridMap`.
+a shallow slab. Its `.y` is the `floor_layer` published in row 0.
+
+### `_cell_top(cell) -> float` / `_footing_y(foot) -> float`
+`_footing_y` is the height the entity's footing reaches up to, and it is what
+row 1's Y component carries — *not* the raw feet.
+
+```gdscript
+var here := _grid.local_to_map(_grid.to_local(foot))
+if _grid.get_cell_item(here) == GridMap.INVALID_CELL_ITEM:
+    return foot.y
+return maxf(foot.y, _cell_top(here))
+```
+
+The cell the feet are *inside* (not below) is the discriminator:
+
+- **Level ground** — the feet rest on a cell boundary, so the cell they are in is
+  the empty one above the floor. `foot.y` is returned and nothing changes.
+- **A ramp or staircase** — the feet rest partway up a **solid** cell, so that
+  cell's top is taken. The tile underfoot then has `tile_near.y − footing_y == 0`
+  exactly, and is spared.
+- **Airborne** — the cell is empty, so the raw feet are used.
+
+Sampling below the feet (`_floor_cell`) cannot do this job: at the base of a
+staircase it lands in the floor *below* the ramp, leaving the ramp itself
+unprotected. The two lookups answer different questions and both are needed.
 
 ### `_push_tuning()`
 Publishes `keyhole_radius`, `keyhole_fade`, `keyhole_min_alpha`,
@@ -224,7 +286,7 @@ values are world coordinates and screen pixels, not colours). Column `i` is enti
 | Row | R | G | B | A |
 |----:|---|---|---|---|
 | 0 | `screen_x` (px) | `screen_y` (px) | `floor_layer` (grid Y of the cell under the feet) | `zone_mask` (bitmask, exact as a float) |
-| 1 | `far_x` (world) | `feet_y` (world) | `far_z` (world) | unused |
+| 1 | `far_x` (world) | `footing_y` (world) | `far_z` (world) | unused |
 
 The project declares the global in `project.godot`:
 
@@ -245,7 +307,7 @@ Set by `IsoGrid._apply_occlusion` on every billboard:
 
 | Parameter | Source | Meaning |
 |-----------|--------|---------|
-| `tile_near` (`vec3`) | `to_global(map_to_local(cell)) + type.near_offset` | World position of the solid's cameraward corner. `near_offset` is the component-wise max over the tile mesh's vertices, computed in `_make_type` **before** the `INFLATE` scaling so the test is not biased outward. |
+| `tile_near` (`vec3`) | `to_global(map_to_local(cell)) + type.near_offset` | World position of the solid's cameraward corner. `near_offset` takes X and Z from the mesh's bounding box but Y from the vertex nearest the camera (§3), and is computed in `_make_type` **before** the `INFLATE` scaling so the test is not biased outward. |
 | `tile_layer` (`float`) | `float(cell.y)` | The cell's grid height, compared against the entity's `floor_layer`. |
 | `tile_zones` (`int`) | `InteriorZones.mask_at(_int_zones, center)` | Bitmask of the interior zones this cell sits inside. |
 | `tile_group` (`int`) | `_cell_group.get(cell, -1)` | Index of this cell's fade group, or `-1` for ungrouped (which reads as gate 1.0 — the ungated behaviour). |
@@ -334,6 +396,11 @@ global uniform float keyhole_shell_cut;
 - **`KEY_ABOVE_LAYERS`** (2.0) — how many grid layers above the entity's floor a
   tile must sit before it reads as *overhead* (roof, ceiling, bridge deck) rather
   than a wall at the entity's own level.
+- **`KEY_MIN_RISE`** (5.0 world units) — dead zone on the Y axis only. A tile must
+  clear the entity's footing by more than this before it occludes at all; below it
+  the tile is a step, not a wall. Sits just above `Player.max_step_px` in world
+  units (5 art px × `Iso.cell().y / Iso.UNIT` ≈ 4.08), so anything the entity can
+  walk up is ignored. See §3.
 - **`KEY_SHELL_SHARPEN`** (0.25) — how much of the shell's reveal is enough to
   fully clear the group's interior cells. Smaller values make the interior vanish
   sooner relative to the shell's soft gradient.
@@ -354,7 +421,8 @@ for (int i = 0; i < keyhole_count; i++) {
 
     if (above && (tile_zones & int(e0.w)) != 0) { cut = true; break; }
 
-    vec3 clear = smoothstep(vec3(0.0), vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
+    vec3 lo = vec3(0.0, KEY_MIN_RISE, 0.0);
+    vec3 clear = smoothstep(lo, lo + vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
     float axis = min(min(clear.x, clear.y), clear.z);
     if (axis <= 0.0) continue;
 
@@ -388,7 +456,10 @@ Step by step:
    the entity's far corner on each cameraward axis. `smoothstep` over
    `[0, KEY_GATE_SOFT]` turns each into a 0–1 factor and `min` takes the weakest.
    A miss on any single axis (the entity is east of the wall, south of it, or
-   standing on top of it) yields 0 and leaves the tile fully solid.
+   standing on top of it) yields 0 and leaves the tile fully solid. The Y axis
+   starts its ramp at `KEY_MIN_RISE` rather than 0, and `e1.y` is the entity's
+   **footing** height — together with the `near_offset` rule these are what make
+   "standing on it" work for ramps as well as flat slabs (§3).
 4. **The disc.** The centre is snapped to the pixel grid with `floor(...) + 0.5`
    so the gradient locks to whole pixels and steps in whole pixels as the entity
    moves — without this, the low-resolution viewport shows the fringe shimmering.
@@ -800,8 +871,8 @@ placed cells ─┐
 Level._process (per frame):          │
   foot = e.global_position           │
   screen = unproject(foot + mid)  ◀──┘ mid = keyhole_body_layers * cell.y / 2
-  far    = foot - (r, 0, r)
-  layer  = _floor_layer(foot)
+  far    = (foot.x - r, _footing_y(foot), foot.z - r)
+  layer  = _floor_cell(foot).y
   zones  = InteriorZones.mask_at(_zones, foot)
         └─▶ _data_image ─▶ _data_texture.update() ─▶ global keyhole_data
         └─▶ global keyhole_count
@@ -850,6 +921,16 @@ occlusion.gdshader fragment():
   treated as a wall.
 - **A wall the player is leaning on flickers** — lower `keyhole_body_radius`, or
   raise `KEY_GATE_SOFT` in the shader so borderline tiles ghost more gently.
+- **The tile underfoot fades out from under the player** — the footing rule (§4)
+  has failed for that tile shape. Run `tools/keyhole_diag.gd`; the footing check
+  sweeps every standable cell at every height and offset and names the first
+  offender.
+- **A ramp ghosts while the player stands at its foot** — one of the three ramp
+  guards in §3 has regressed. The ramp-foot check names the tile and prints the
+  per-axis differences, so which guard failed is readable from `d`.
+- **A short lip or first step ghosts a whole tile** — raise `KEY_MIN_RISE`. Keep
+  it above `Player.max_step_px` in world units or the player will fade things it
+  can simply walk onto.
 - **A roof does not come off** — check that both the roof cells and the player's
   standing position are inside the same `interior` zone box, and that the roof is
   at least `KEY_ABOVE_LAYERS` above the player's floor layer. In the editor, drag
@@ -908,6 +989,8 @@ godot --headless --path <project> --script res://tools/keyhole_diag.gd
 | **Synthetic layouts** | A flat wall (1 group, 0 interior), an L-corner (must fuse to 1 group), and an alcove return (the hidden cell must be interior, the front cell shell). These run on `OccluderGroups.build` directly, so they hold regardless of what the shipped level contains. |
 | **Occluder override** | Wraps the level in one `occluder` box, asserts it fuses to a single group, then removes it and asserts the original grouping returns. |
 | **Oracle sweep** | The important one. At 80 player positions across the built-up map it runs the cheap column walk *and* a brute-force scan of every placed cell, and asserts they agree — same groups, same coverage. This is what catches an incomplete `COLUMN_SPREAD` (§11). |
+| **Footing** | Sweeps every standable cell at 9 heights × 9 footprint offsets (5022 positions) and asserts the tile underfoot is never faded by the three-axis rule. Reverting `_footing_y` to the raw feet fails 424 of 558 at the narrower sampling. |
+| **Ramp foot** | For every ramp that falls away from the camera, stands the entity on the neighbouring cell at the ramp's own base height and asserts it does not fade. Selects ramps by tile name, so it stays independent of the `near_offset` rule it checks. |
 | **Fade ramp** | Prints the peak gate over 24 frames from a clean state; it must rise gradually rather than snapping to 1. |
 | **Gate range** | Asserts every gate stays within `[0,1]`, the precondition for the gate being purely subtractive (§13). |
 

@@ -31,7 +31,7 @@ instance uniform float tile_shell = 1.0;
 
 // Keyhole globals, written every frame by Level (scripts/level.gd).
 // keyhole_data is an 8x2 RGBAF texture: row 0 = (screen_x, screen_y,
-// floor_layer, zone_mask), row 1 = (far_x, feet_y, far_z, _).
+// floor_layer, zone_mask), row 1 = (far_x, footing_y, far_z, _).
 global uniform int keyhole_count;
 global uniform sampler2D keyhole_data;
 global uniform float keyhole_radius;
@@ -50,6 +50,12 @@ global uniform float keyhole_shell_cut;
 // World units a tile must reach past the entity's far corner on an axis before
 // it counts as a full occluder along it; below that the reveal ramps in.
 const float KEY_GATE_SOFT = 12.0;
+
+// Extra rise a tile must clear the entity's footing by before it counts as an
+// occluder at all. Anything shorter is a lip the entity could simply step onto
+// — a stair's first tread, a slab_1 edge — and hides nothing, so it must not
+// ghost the whole tile. Sits just above Player.max_step_px in world units.
+const float KEY_MIN_RISE = 5.0;
 
 // Layers above the entity's floor at which a tile reads as overhead.
 const float KEY_ABOVE_LAYERS = 2.0;
@@ -117,7 +123,8 @@ void fragment() {
 
 		// A tile hides the entity only where it reaches past the entity's far
 		// corner on all three cameraward axes (+X, +Y, +Z) at once.
-		vec3 clear = smoothstep(vec3(0.0), vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
+		vec3 lo = vec3(0.0, KEY_MIN_RISE, 0.0);
+		vec3 clear = smoothstep(lo, lo + vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
 		float axis = min(min(clear.x, clear.y), clear.z);
 		if (axis <= 0.0) continue;
 

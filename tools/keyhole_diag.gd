@@ -8,6 +8,8 @@ extends SceneTree
 # gate settles. Also checks the invariants the gate depends on.
 
 const SETTLE_FRAMES = 90
+const SOFT = 12.0      # KEY_GATE_SOFT
+const MIN_RISE = 5.0   # KEY_MIN_RISE
 
 var lvl: Level
 var grid: IsoGrid
@@ -26,6 +28,8 @@ func _init() -> void:
 	_report_groups()
 	_check_synthetic()
 	_check_occluder_zone()
+	_check_footing()
+	_check_ramp_foot()
 	await _sweep()
 
 	print("\nRESULT: ", "PASS" if fails == 0 else "FAIL (%d)" % fails)
@@ -146,6 +150,106 @@ func _check_occluder_zone() -> void:
 	grid._refresh_sprites()
 	_expect(grid.group_count() == before, "removing the box should restore the grouping")
 	lvl.refresh()
+
+# The tile an entity is standing on must never fade out from under it. Ramps and
+# staircases are the hazard: their bounding corner sits a whole cell above the
+# tread, so a naive feet comparison lets them clear their own occupant. Every
+# standable cell is checked at every height across its span.
+func _check_footing() -> void:
+	print("\n== footing (the tile underfoot must stay solid) ==")
+	var lib := grid.mesh_library
+	var r: float = lvl.keyhole_body_radius
+	var checked := 0
+	var faded := 0
+	var worst := ""
+
+	for c in grid.get_used_cells():
+		if grid.get_cell_item(c + Vector3i(0, 1, 0)) != GridMap.INVALID_CELL_ITEM:
+			continue                      # nothing can stand on this cell
+		var type = grid.cell_type(c)
+		if type == null: continue
+		var center: Vector3 = grid.to_global(grid.map_to_local(c))
+		var half: float = grid.cell_size.y * 0.5
+		var near: Vector3 = center + type.near_offset
+
+		# Feet anywhere across the cell's vertical span, and anywhere across its
+		# footprint — a body standing near a cell edge is the awkward case.
+		var reach: float = grid.cell_size.x * 0.5 - 0.01
+		for step in 9:
+			for ox in [-reach, 0.0, reach]:
+				for oz in [-reach, 0.0, reach]:
+					var foot := Vector3(center.x + ox,
+						center.y - half + half * 2.0 * step / 8.0, center.z + oz)
+					var far := Vector3(foot.x - r, lvl._footing_y(foot), foot.z - r)
+					var axis := _axis(near, far)
+					checked += 1
+					if axis > 0.0:
+						faded += 1
+						if worst == "":
+							worst = ("  %s %s: feet %.1f below the cell top, offset (%.0f, %.0f)"
+							+ " -> axis=%.3f") % [
+								str(c), lib.get_item_name(grid.get_cell_item(c)),
+								center.y + half - foot.y, ox, oz, axis]
+
+	print("  standable cell/height pairs checked: %d   underfoot tile faded: %d" % [checked, faded])
+	if worst != "":
+		print(worst)
+	_expect(faded == 0, "the tile underfoot faded at %d/%d footings" % [faded, checked])
+
+# Standing at the foot of a ramp that falls away from the camera. The ramp is
+# essentially flat where the entity is, so it must not fade — even though its
+# bounding-box top is a whole cell higher, floating over its far end.
+#
+# "_n" ramps ascend toward -Z and "_w" ramps toward -X, so their low end is the
+# one facing the camera. Selecting by name keeps this test independent of the
+# near_offset rule it is checking.
+const FALLING = {"slope_n": Vector3i(0, 0, 1), "stairs_n": Vector3i(0, 0, 1),
+	"slope_w": Vector3i(1, 0, 0), "stairs_w": Vector3i(1, 0, 0)}
+
+func _check_ramp_foot() -> void:
+	print("\n== ramp foot (a ramp falling away from the camera must not fade) ==")
+	var lib := grid.mesh_library
+	var r: float = lvl.keyhole_body_radius
+	var checked := 0
+	var faded := 0
+	var worst := ""
+
+	for c in grid.get_used_cells():
+		var name: String = lib.get_item_name(grid.get_cell_item(c))
+		if not FALLING.has(name): continue
+		var type = grid.cell_type(c)
+		if type == null: continue
+		var here: Vector3 = grid.to_global(grid.map_to_local(c))
+		var near: Vector3 = here + type.near_offset
+		var low := here.y - grid.cell_size.y * 0.5          # the ramp's low end
+		var out: Vector3 = grid.to_global(grid.map_to_local(c + FALLING[name]))
+
+		# Stand on the neighbouring cell at the ramp's own base height, sweeping
+		# across it so the far edge and the shared edge are both covered.
+		for t in 5:
+			var mix := float(t) / 4.0
+			var foot := Vector3(lerpf(here.x, out.x, mix), low, lerpf(here.z, out.z, mix))
+			var far := Vector3(foot.x - r, lvl._footing_y(foot), foot.z - r)
+			var axis := _axis(near, far)
+			var d := near - far
+			checked += 1
+			if axis > 0.0:
+				faded += 1
+				if worst == "":
+					worst = "  %s %s faded at its own foot: axis=%.2f  d=(%.1f, %.1f, %.1f)" % [
+						str(c), name, axis, d.x, d.y, d.z]
+
+	print("  ramp-foot positions checked: %d   ramp faded: %d" % [checked, faded])
+	if worst != "":
+		print(worst)
+	_expect(faded == 0, "a ramp faded while the entity stood at its foot (%d/%d)" %
+		[faded, checked])
+
+# The shader's three-axis rule, mirrored on the CPU.
+func _axis(near: Vector3, far: Vector3) -> float:
+	var d := near - far
+	return min(smoothstep(0.0, SOFT, d.x),
+		min(smoothstep(MIN_RISE, MIN_RISE + SOFT, d.y), smoothstep(0.0, SOFT, d.z)))
 
 func _interior(r: Dictionary) -> int:
 	var n := 0
