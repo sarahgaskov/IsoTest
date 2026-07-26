@@ -1,11 +1,6 @@
 extends SceneTree
 
-# Headless verifier for the keyhole occlusion gate (docs/player_transparency.md).
-#   godot --headless --path <project> --script res://tools/keyhole_diag.gd
-#
-# Sweeps the player across the level, and for each stop reports which fade
-# groups the diagonal walk finds, how much of the body they cover, and how the
-# gate settles. Also checks the invariants the gate depends on.
+# Headless verifier for the keyhole occlusion gate. See docs/player_transparency.md section 16.
 
 const SETTLE_FRAMES = 90
 const SOFT = 12.0      # KEY_GATE_SOFT
@@ -30,6 +25,7 @@ func _init() -> void:
 	_check_occluder_zone()
 	_check_footing()
 	_check_ramp_foot()
+	_check_steppable()
 	await _sweep()
 
 	print("\nRESULT: ", "PASS" if fails == 0 else "FAIL (%d)" % fails)
@@ -77,8 +73,7 @@ func _report_groups() -> void:
 	hist.sort()
 	print("group sizes: ", hist)
 
-# The shipped level happens to have no group that is more than one cell deep
-# along the view diagonal, so exercise the grouping rules on layouts that are.
+# Level geometry does not reliably exercise these, so drive the rules directly.
 func _check_synthetic() -> void:
 	print("\n== synthetic layouts ==")
 
@@ -103,8 +98,7 @@ func _check_synthetic() -> void:
 	print("L-corner      count=%d interior=%d" % [r.count, _interior(r)])
 	_expect(r.count == 1, "an L-corner should fuse into a single group")
 
-	# An alcove return: a cell tucked one diagonal step behind its own group,
-	# which is exactly the case tile_shell exists for.
+	# An alcove return: a cell behind its own group — the case tile_shell exists for.
 	var nook := []
 	for y in 2:
 		for z in 3:
@@ -138,8 +132,7 @@ func _check_occluder_zone() -> void:
 	print("  groups: %d without a box, %d with one box over the whole level" % [before, after])
 	_expect(after == 1, "a box covering the level should fuse it into one group")
 
-	# Every cell is in one group now, so everything but the frontmost cell of
-	# each screen column must read as interior.
+	# One group now, so all but each column's frontmost cell must read as interior.
 	var interior := 0
 	for c in grid.get_used_cells():
 		if grid.cell_group(c + OccluderGroups.VIEW_STEP) == grid.cell_group(c):
@@ -151,10 +144,7 @@ func _check_occluder_zone() -> void:
 	_expect(grid.group_count() == before, "removing the box should restore the grouping")
 	lvl.refresh()
 
-# The tile an entity is standing on must never fade out from under it. Ramps and
-# staircases are the hazard: their bounding corner sits a whole cell above the
-# tread, so a naive feet comparison lets them clear their own occupant. Every
-# standable cell is checked at every height across its span.
+# The tile underfoot must never fade; ramps are the hazard. See docs section 3.
 func _check_footing() -> void:
 	print("\n== footing (the tile underfoot must stay solid) ==")
 	var lib := grid.mesh_library
@@ -172,8 +162,7 @@ func _check_footing() -> void:
 		var half: float = grid.cell_size.y * 0.5
 		var near: Vector3 = center + type.near_offset
 
-		# Feet anywhere across the cell's vertical span, and anywhere across its
-		# footprint — a body standing near a cell edge is the awkward case.
+		# Across the cell's span and footprint; standing near an edge is the hazard.
 		var reach: float = grid.cell_size.x * 0.5 - 0.01
 		for step in 9:
 			for ox in [-reach, 0.0, reach]:
@@ -196,13 +185,7 @@ func _check_footing() -> void:
 		print(worst)
 	_expect(faded == 0, "the tile underfoot faded at %d/%d footings" % [faded, checked])
 
-# Standing at the foot of a ramp that falls away from the camera. The ramp is
-# essentially flat where the entity is, so it must not fade — even though its
-# bounding-box top is a whole cell higher, floating over its far end.
-#
-# "_n" ramps ascend toward -Z and "_w" ramps toward -X, so their low end is the
-# one facing the camera. Selecting by name keeps this test independent of the
-# near_offset rule it is checking.
+# "_n"/"_w" ramps face the camera with their low end; named so, not near_offset-derived.
 const FALLING = {"slope_n": Vector3i(0, 0, 1), "stairs_n": Vector3i(0, 0, 1),
 	"slope_w": Vector3i(1, 0, 0), "stairs_w": Vector3i(1, 0, 0)}
 
@@ -224,8 +207,7 @@ func _check_ramp_foot() -> void:
 		var low := here.y - grid.cell_size.y * 0.5          # the ramp's low end
 		var out: Vector3 = grid.to_global(grid.map_to_local(c + FALLING[name]))
 
-		# Stand on the neighbouring cell at the ramp's own base height, sweeping
-		# across it so the far edge and the shared edge are both covered.
+		# Sweep the neighbouring cell at the ramp's base height, edge to edge.
 		for t in 5:
 			var mix := float(t) / 4.0
 			var foot := Vector3(lerpf(here.x, out.x, mix), low, lerpf(here.z, out.z, mix))
@@ -245,6 +227,32 @@ func _check_ramp_foot() -> void:
 	_expect(faded == 0, "a ramp faded while the entity stood at its foot (%d/%d)" %
 		[faded, checked])
 
+# Ramps are re-derived from tile names here, independently of IsoGrid._is_ramp.
+func _check_steppable() -> void:
+	print("\n== steppable ramps (never hidden, whatever the geometry says) ==")
+	var lib := grid.mesh_library
+	var checked := 0
+	var wrong := 0
+	var worst := ""
+	for c in grid.get_used_cells():
+		var type = grid.cell_type(c)
+		if type == null: continue
+		var name: String = lib.get_item_name(grid.get_cell_item(c))
+		var ramp := name.contains("stairs") or name.contains("slope")
+		for floor_layer in range(c.y - 3, c.y + 4):
+			var want := ramp and c.y <= floor_layer + 1
+			var got: bool = lvl.is_steppable(type, c, floor_layer)
+			checked += 1
+			if got != want:
+				wrong += 1
+				if worst == "":
+					worst = "  %s %s at floor layer %d: expected steppable=%s, got %s" % [
+						str(c), name, floor_layer, want, got]
+	print("  cell/floor-layer pairs checked: %d   misclassified: %d" % [checked, wrong])
+	if worst != "":
+		print(worst)
+	_expect(wrong == 0, "is_steppable misclassified %d/%d cases" % [wrong, checked])
+
 # The shader's three-axis rule, mirrored on the CPU.
 func _axis(near: Vector3, far: Vector3) -> float:
 	var d := near - far
@@ -258,19 +266,18 @@ func _interior(r: Dictionary) -> int:
 			n += 1
 	return n
 
-# Ground truth: every placed cell that really covers the body and reaches past it
-# toward the camera. O(cells), far too slow for _process, but exact — so the
-# walk's cheap column enumeration can be checked against it.
+# Ground truth: O(cells), far too slow for _process, but exact.
 func _oracle(camera: Camera3D, foot: Vector3, height: float) -> Dictionary:
 	var samples := lvl._body_samples(camera, foot, height)
 	var view := Iso.facing().z
 	var floor_depth := foot.dot(view)
+	var floor_layer := lvl._floor_cell(foot).y
 	var out := {}
 	for c in grid.get_used_cells():
 		var g := grid.cell_group(c)
 		if g < 0: continue
 		var type = grid.cell_type(c)
-		if type == null: continue
+		if type == null or lvl.is_steppable(type, c, floor_layer): continue
 		var center: Vector3 = grid.to_global(grid.map_to_local(c))
 		if (center + type.near_offset).dot(view) <= floor_depth: continue
 		var cover: float = lvl._coverage(type, camera.unproject_position(center), samples)
@@ -290,8 +297,7 @@ func _sweep() -> void:
 	print("\n== sweep: walk vs brute-force oracle ==")
 	print("  (the walk must find every group the oracle does, at the same coverage)")
 	var spots := []
-	# A dense lattice around the built-up part of the map, so the enumeration is
-	# exercised from every side of every wall — the NE approach included.
+	# A dense lattice, so every wall is approached from every side.
 	for x in range(-7, 3):
 		for z in range(-5, 3):
 			spots.append(Vector3(x * 24.0, 40.0, z * 24.0))
@@ -343,9 +349,7 @@ func _sweep() -> void:
 			trace.append("%.2f" % peak)
 	print("  peak gate over 24 frames: ", " -> ".join(trace))
 
-	# The shader applies the gate as mix(1.0, faded_alpha, gate), so a gate in
-	# [0,1] can only ever make a tile *more* opaque than the ungated rules.
-	# Guard the precondition; the algebra does the rest.
+	# Gates in [0,1] are what make mix(1.0, faded_alpha, gate) purely subtractive.
 	var bad := 0
 	for v in lvl._gate:
 		if v < 0.0 or v > 1.0:

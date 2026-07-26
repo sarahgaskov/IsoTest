@@ -344,6 +344,11 @@ The heart of the build. Step by step:
     `probes`, `depth`, `region_size`, `origin`, `ramp_chain`) and by
     `_refresh_sprites` (`mesh`, `mat`, `near_offset`).
 
+### `_is_ramp(tile) -> bool`
+True for a `stairs`/`slope` tile, corner pieces included — name-based, like
+`_ramp_chain`. Keyhole input only (`player_transparency.md` §3); the outline
+system does not use it.
+
 ### `_ramp_chain(tile) -> Variant`
 For a `stairs_*` or `slope_*` tile, the grid offset to the cell that continues the
 same ramp: one cell along `RAMP_DIR[rot]` and one cell up, since a plain ramp
@@ -387,8 +392,8 @@ The only bridge between contact detection and the shader. Calls
 - `neighbors` — the 6-bit mask of touched edges.
 - `range01`, `range23`, `range45` — the six `[t0, t1]` spans, packed two
   directions per `vec4` in index order.
-- `tile_near`, `tile_layer`, `tile_zones`, `tile_group`, `tile_shell` — keyhole
-  inputs, documented in `player_transparency.md`.
+- `tile_near`, `tile_layer`, `tile_zones`, `tile_group`, `tile_shell`,
+  `tile_ramp` — keyhole inputs, documented in `player_transparency.md`.
 
 `_refresh_sprites` also calls `OccluderGroups.build(cells)` and caches the result
 (`_cell_group`, `_cell_shell`, `_group_count`, `_cell_lo`, `_cell_hi`), which
@@ -559,9 +564,9 @@ doc.)
 ### Inputs
 Per **tile type** (`uniform`): `albedo_tex`, `mask_tex`, `edges[6]`.
 Per **cell** (`instance uniform`): `neighbors`, `range01`, `range23`, `range45`.
-The remaining five instance parameters (`tile_near`, `tile_layer`, `tile_zones`,
-`tile_group`, `tile_shell`) belong to the keyhole half and never affect the
-outline block.
+The remaining six instance parameters (`tile_near`, `tile_layer`, `tile_zones`,
+`tile_group`, `tile_shell`, `tile_ramp`) belong to the keyhole half and never
+affect the outline block.
 
 ### `vertex()`
 Billboards the quad to face the camera while keeping the mesh's own scale, so the

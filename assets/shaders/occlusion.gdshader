@@ -1,15 +1,12 @@
 shader_type spatial;
-// depth_prepass_alpha keeps tile-vs-tile and tile-vs-player sorting correct
-// while the keyhole fringe blends. See docs/outline_occlusion.md and
-// docs/player_transparency.md.
+// Outline erasing + keyhole reveal. See docs/outline_occlusion.md and docs/player_transparency.md.
 render_mode unshaded, cull_disabled, depth_prepass_alpha;
 
 // Sprite + its occlusion mask (same region, same UVs).
 uniform sampler2D albedo_tex : source_color, filter_nearest;
 uniform sampler2D mask_tex : filter_nearest;
 
-// Per tile type: silhouette edge as (a.xy, b.xy) in UV. Order clockwise from
-// top-left: NW NE E SE SW W; opposite = +3.
+// Per tile type: silhouette edge (a.xy, b.xy) in UV, clockwise from top-left.
 uniform vec4 edges[6];
 
 // Per cell: touched directions, and the [t0,t1] contact span along each edge.
@@ -18,20 +15,17 @@ instance uniform vec4 range01;
 instance uniform vec4 range23;
 instance uniform vec4 range45;
 
-// Per cell: the solid's cameraward corner in world space (its max x, y, z),
-// plus the cell's grid height and interior-zone bitmask.
+// Per cell: cameraward corner (world), grid height, interior-zone bitmask.
 instance uniform vec3 tile_near = vec3(0.0);
 instance uniform float tile_layer = 0.0;
 instance uniform int tile_zones = 0;
 
-// Per cell: its fade group, and 1.0 when the cell is that group's camera-facing
-// shell (0.0 for cells the group hides behind itself).
+// Per cell: fade group, 1.0 for the group's camera-facing shell, 1.0 for a ramp.
 instance uniform int tile_group = -1;
 instance uniform float tile_shell = 1.0;
+instance uniform float tile_ramp = 0.0;
 
 // Keyhole globals, written every frame by Level (scripts/level.gd).
-// keyhole_data is an 8x2 RGBAF texture: row 0 = (screen_x, screen_y,
-// floor_layer, zone_mask), row 1 = (far_x, footing_y, far_z, _).
 global uniform int keyhole_count;
 global uniform sampler2D keyhole_data;
 global uniform float keyhole_radius;
@@ -39,23 +33,17 @@ global uniform float keyhole_fade;
 global uniform float keyhole_min_alpha;
 global uniform float keyhole_above_reach;
 
-// Per-group occlusion gate: an Nx1 R32F texture holding each group's smoothed
-// 0..1 fade, written by Level. keyhole_gate_enable blends the whole gate out
-// (0 = ignore it, reproducing the ungated behaviour exactly); keyhole_shell_cut
-// blends out the interior-cell cut the same way.
+// Per-group gate texture, plus the two blends that disable it and the shell cut.
 global uniform sampler2D keyhole_groups;
 global uniform float keyhole_gate_enable;
 global uniform float keyhole_shell_cut;
 
-// World units a tile must reach past the entity's far corner on an axis before
-// it counts as a full occluder along it; below that the reveal ramps in.
+// World units a tile must clear the entity's far corner by to occlude fully.
 const float KEY_GATE_SOFT = 12.0;
 
-// Extra rise a tile must clear the entity's footing by before it counts as an
-// occluder at all. Anything shorter is a lip the entity could simply step onto
-// — a stair's first tread, a slab_1 edge — and hides nothing, so it must not
-// ghost the whole tile. Sits just above Player.max_step_px in world units.
+// Rise below which a tile is a step the entity could walk onto, not an occluder.
 const float KEY_MIN_RISE = 5.0;
+const vec3 KEY_RISE = vec3(0.0, KEY_MIN_RISE, 0.0);
 
 // Layers above the entity's floor at which a tile reads as overhead.
 const float KEY_ABOVE_LAYERS = 2.0;
@@ -102,8 +90,7 @@ void fragment() {
 		if (d >= 0 && (neighbors & (1 << d)) != 0) {
 			vec2 a = edges[d].xy;
 			vec2 ab = edges[d].zw - a;
-			// Position of this pixel along the edge, the same projection the
-			// CPU used to parametrise the contact span.
+			// Position along the edge, the same projection the CPU parametrised with.
 			float t = clamp(dot(UV - a, ab) / dot(ab, ab), 0.0, 1.0);
 			vec2 span = range_for(d);
 			if (t >= span.x && t <= span.y)
@@ -121,32 +108,26 @@ void fragment() {
 		// Overhead and sharing an interior zone with the entity: gone entirely.
 		if (above && (tile_zones & int(e0.w)) != 0) { cut = true; break; }
 
-		// A tile hides the entity only where it reaches past the entity's far
-		// corner on all three cameraward axes (+X, +Y, +Z) at once.
-		vec3 lo = vec3(0.0, KEY_MIN_RISE, 0.0);
-		vec3 clear = smoothstep(lo, lo + vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
+		// A steppable ramp is a layer tall against a taller body: it never hides it.
+		if (tile_ramp > 0.5 && tile_layer <= e0.z + 1.0) continue;
+
+		// Occludes only where it clears the entity's far corner on +X, +Y and +Z at once.
+		vec3 clear = smoothstep(KEY_RISE, KEY_RISE + vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
 		float axis = min(min(clear.x, clear.y), clear.z);
 		if (axis <= 0.0) continue;
 
-		// Snap the disc center to the pixel grid so the gradient steps in whole
-		// pixels as the entity moves.
+		// Snapped to whole pixels so the gradient does not shimmer as the entity moves.
 		vec2 center = floor(e0.xy) + 0.5;
 		float dist = length(FRAGCOORD.xy - center);
 		float reach = keyhole_fade + (above ? keyhole_above_reach : 0.0);
 		reveal = max(reveal, axis * (1.0 - smoothstep(keyhole_radius, keyhole_radius + reach, dist)));
 	}
 
-	// Occlusion gate: this cell's wall only fades while some tile of it really
-	// covers a tracked entity on screen. Purely subtractive — gate 1.0 leaves
-	// the reveal above untouched.
-	float gate = 1.0;
-	if (tile_group >= 0)
-		gate = texelFetch(keyhole_groups, ivec2(tile_group, 0), 0).r;
+	// Occlusion gate: subtractive, so gate 1.0 leaves the reveal above untouched.
+	float gate = tile_group < 0 ? 1.0 : texelFetch(keyhole_groups, ivec2(tile_group, 0), 0).r;
 	gate = mix(1.0, gate, keyhole_gate_enable);
 
-	// The group's shell keeps the soft gradient; the cells it hides behind
-	// itself clear sooner, so the keyhole shows through the group rather than
-	// into its interior faces.
+	// The shell keeps the soft gradient; cells it hides behind itself clear sooner.
 	float shell = mix(1.0, tile_shell, keyhole_shell_cut);
 	float shell_alpha = 1.0 - reveal * (1.0 - keyhole_min_alpha);
 	float inner_alpha = 1.0 - smoothstep(0.0, KEY_SHELL_SHARPEN, reveal);

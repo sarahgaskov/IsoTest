@@ -3,9 +3,7 @@ class_name Iso
 
 ## 3D width / 2D width
 const PIXEL_SCALE = sqrt(2)/2.0
-# If tile is 24 x 24 x 24, then
-# 3D width = 24sqrt(2); 2D width = 48 px
-# 24sqrt(2)/48 = sqrt(2)/2.0
+# A 24-unit tile is 24sqrt(2) wide in 3D and 48 px in 2D, hence sqrt(2)/2.
 
 const UNIT = 24.0                 ## edge of a perfect block (3d units)
 const TILE_PX = Vector2i(48, 24)  ## isometric footprint of one cell (px)

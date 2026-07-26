@@ -2,14 +2,11 @@
 extends RefCounted
 class_name InteriorZones
 
-# Designer-drawn box volumes collected from a named node group. The "interior"
-# group drives roof removal; OccluderGroups reuses boxes() for the "occluder"
-# group. See docs/player_transparency.md.
+# Designer-drawn box volumes, by node group. See docs/player_transparency.md.
 
 const MAX_ZONES = 24  # keeps the bitmask exact through an RGBAF texel
 
-# Every BoxShape3D volume of a node group, in scene-tree order.
-# -> [{inv: Transform3D, ext: Vector3}]
+# -> [{inv: Transform3D, ext: Vector3}] per BoxShape3D, in scene-tree order.
 static func boxes(tree: SceneTree, group: StringName, limit: int) -> Array:
 	var out := []
 	if tree == null: return out
@@ -40,8 +37,7 @@ static func mask_at(zones: Array, p: Vector3) -> int:
 			mask |= 1 << i
 	return mask
 
-# Hash of every box's transform + size across both groups, so editor edits
-# trigger a re-sprite.
+# Hash of both groups' boxes, so editor edits trigger a re-sprite.
 static func hash_of(tree: SceneTree) -> int:
 	if tree == null: return 0
 	var acc := []

@@ -121,6 +121,41 @@ shorter is a lip the entity could simply step onto, and hides nothing.
 
 All three are needed; each was found by a test that the previous two passed.
 
+### Steppable ramps are exempt outright
+
+The three guards above are geometry corrections — they stop a ramp from
+*overstating* how tall it is. On top of them sits a flat categorical rule:
+
+> **A stairs or slope tile at most one layer above the entity's floor never
+> occludes it, whatever the geometry says.**
+
+The reasoning is about the body, not the tile: such a ramp is a tile the entity
+can simply step onto, so it is at most one layer tall relative to where the
+entity stands — and the body is `keyhole_body_layers` (1.8) tall, so at least
+0.8 of a layer always stands clear above it. It cannot hide the entity, so it
+must never fade.
+
+This is what keeps a staircase solid while you walk up it: the next segment of
+the ramp chain sits exactly one layer above your floor, and before this rule it
+faded at `axis = 1.00`.
+
+It applies to **ramps only** — a solid block one layer up would hide the entity's
+lower body, and fading it is exactly what the keyhole is for. `IsoGrid._is_ramp`
+classifies by tile name (`stairs`/`slope`, corner pieces included), the same
+data-driven convention `_ramp_chain` uses. **A new ramp mesh named outside that
+convention will not be recognised** — `tools/keyhole_diag.gd` re-derives the
+classification from names independently, so it will catch a mismatch between the
+two, but not a mesh that neither considers a ramp.
+
+Note this rule is deliberately blunt: it uses `tile_layer <= floor_layer + 1`
+rather than `== `. Ramps at or below the entity's floor are already spared by the
+Y geometry (their cameraward corner cannot clear the footing), so the looser test
+changes nothing while staying trivially readable.
+
+Both halves of the pipeline apply it, and must agree: the shader skips the tile
+per entity, and `Level.is_steppable` skips it in the gate walk (§11) so such a
+ramp cannot light its group either.
+
 ---
 
 ## 4. `scripts/level.gd` — the director
@@ -246,15 +281,15 @@ Invalid instances are skipped but not pruned; `refresh()` is the pruning step.
 *below* the feet lands inside the floor cell whether that cell is a full block or
 a shallow slab. Its `.y` is the `floor_layer` published in row 0.
 
-### `_cell_top(cell) -> float` / `_footing_y(foot) -> float`
-`_footing_y` is the height the entity's footing reaches up to, and it is what
-row 1's Y component carries — *not* the raw feet.
+### `_footing_y(foot) -> float`
+The height the entity's footing reaches up to, and what row 1's Y component
+carries — *not* the raw feet.
 
 ```gdscript
 var here := _grid.local_to_map(_grid.to_local(foot))
 if _grid.get_cell_item(here) == GridMap.INVALID_CELL_ITEM:
     return foot.y
-return maxf(foot.y, _cell_top(here))
+return maxf(foot.y, _grid.to_global(_grid.map_to_local(here)).y + _grid.cell_size.y * 0.5)
 ```
 
 The cell the feet are *inside* (not below) is the discriminator:
@@ -312,13 +347,16 @@ Set by `IsoGrid._apply_occlusion` on every billboard:
 | `tile_zones` (`int`) | `InteriorZones.mask_at(_int_zones, center)` | Bitmask of the interior zones this cell sits inside. |
 | `tile_group` (`int`) | `_cell_group.get(cell, -1)` | Index of this cell's fade group, or `-1` for ungrouped (which reads as gate 1.0 — the ungated behaviour). |
 | `tile_shell` (`float`) | `1.0` unless `_cell_shell[cell]` is false | 1.0 when the cell is its group's camera-facing shell, 0.0 when the group hides it behind itself. |
+| `tile_ramp` (`float`) | `1.0` if `type.ramp` | 1.0 for a stairs/slope tile (corner pieces included), which the steppable rule (§3) exempts. |
 
 Because these are instance parameters rather than uniforms, all cells of the same
 tile type still share one `ShaderMaterial` — which is the reason the sprite layer
 exists at all (a `GridMap` batches cells and offers no per-cell inputs).
 
-`tile_shell` is a `float` rather than a `bool` because Godot's instance-uniform
-set does not include booleans.
+`tile_shell` and `tile_ramp` are `float`s rather than `bool`s because Godot's
+instance-uniform set does not include booleans. Ten instance parameters is within
+Godot's budget, but it is the practical ceiling worth planning around — a further
+per-cell flag is better packed into an existing one than added alongside.
 
 ---
 
@@ -396,7 +434,7 @@ global uniform float keyhole_shell_cut;
 - **`KEY_ABOVE_LAYERS`** (2.0) — how many grid layers above the entity's floor a
   tile must sit before it reads as *overhead* (roof, ceiling, bridge deck) rather
   than a wall at the entity's own level.
-- **`KEY_MIN_RISE`** (5.0 world units) — dead zone on the Y axis only. A tile must
+- **`KEY_MIN_RISE`** (5.0 world units, pre-broadcast into `KEY_RISE`) — dead zone on the Y axis only. A tile must
   clear the entity's footing by more than this before it occludes at all; below it
   the tile is a step, not a wall. Sits just above `Player.max_step_px` in world
   units (5 art px × `Iso.cell().y / Iso.UNIT` ≈ 4.08), so anything the entity can
@@ -421,8 +459,9 @@ for (int i = 0; i < keyhole_count; i++) {
 
     if (above && (tile_zones & int(e0.w)) != 0) { cut = true; break; }
 
-    vec3 lo = vec3(0.0, KEY_MIN_RISE, 0.0);
-    vec3 clear = smoothstep(lo, lo + vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
+    if (tile_ramp > 0.5 && tile_layer <= e0.z + 1.0) continue;
+
+    vec3 clear = smoothstep(KEY_RISE, KEY_RISE + vec3(KEY_GATE_SOFT), tile_near - e1.xyz);
     float axis = min(min(clear.x, clear.y), clear.z);
     if (axis <= 0.0) continue;
 
@@ -432,9 +471,7 @@ for (int i = 0; i < keyhole_count; i++) {
     reveal = max(reveal, axis * (1.0 - smoothstep(keyhole_radius, keyhole_radius + reach, dist)));
 }
 
-float gate = 1.0;
-if (tile_group >= 0)
-    gate = texelFetch(keyhole_groups, ivec2(tile_group, 0), 0).r;
+float gate = tile_group < 0 ? 1.0 : texelFetch(keyhole_groups, ivec2(tile_group, 0), 0).r;
 gate = mix(1.0, gate, keyhole_gate_enable);
 
 float shell = mix(1.0, tile_shell, keyhole_shell_cut);
@@ -452,7 +489,10 @@ Step by step:
    what the remaining entities would contribute. Exterior tiles (zone mask 0 — a
    bridge, an unentered building) never take this path and only ever get the
    circular keyhole.
-3. **The three-axis gate.** `tile_near - e1.xyz` is how far the tile reaches past
+3. **The steppable-ramp skip.** A ramp at most one layer above *this* entity's
+   floor contributes nothing (§3). `continue` rather than `break`, because the
+   test is per entity — the same tile may still hide someone standing lower.
+4. **The three-axis gate.** `tile_near - e1.xyz` is how far the tile reaches past
    the entity's far corner on each cameraward axis. `smoothstep` over
    `[0, KEY_GATE_SOFT]` turns each into a 0–1 factor and `min` takes the weakest.
    A miss on any single axis (the entity is east of the wall, south of it, or
@@ -460,24 +500,24 @@ Step by step:
    starts its ramp at `KEY_MIN_RISE` rather than 0, and `e1.y` is the entity's
    **footing** height — together with the `near_offset` rule these are what make
    "standing on it" work for ramps as well as flat slabs (§3).
-4. **The disc.** The centre is snapped to the pixel grid with `floor(...) + 0.5`
+5. **The disc.** The centre is snapped to the pixel grid with `floor(...) + 0.5`
    so the gradient locks to whole pixels and steps in whole pixels as the entity
    moves — without this, the low-resolution viewport shows the fringe shimmering.
    `dist` is the fragment's distance from that centre in screen pixels.
-5. **`reach`.** Overhead tiles get `keyhole_above_reach` extra gradient width, so
+6. **`reach`.** Overhead tiles get `keyhole_above_reach` extra gradient width, so
    they start fading from farther out and clear sooner than a wall at the
    entity's own level.
-6. **`reveal`** accumulates as a `max` over entities: the most-revealing entity
+7. **`reveal`** accumulates as a `max` over entities: the most-revealing entity
    wins, and two players standing apart each open their own window.
-7. **The occlusion gate** is fetched for this cell's group and blended out
+8. **The occlusion gate** is fetched for this cell's group and blended out
    entirely by `keyhole_gate_enable`. §13 covers why this can only ever make the
    tile more opaque.
-8. **The shell split.** `shell_alpha` is the original soft gradient, kept for the
+9. **The shell split.** `shell_alpha` is the original soft gradient, kept for the
    group's camera-facing shell. `inner_alpha` is the sharpened version used by the
    cells the group hides behind itself — they clear once the shell is only
    `KEY_SHELL_SHARPEN` revealed, so the hole shows *through* the wall rather than
    into its interior faces. `keyhole_shell_cut` blends between the two treatments.
-9. The final alpha keeps `keyhole_min_alpha` of the sprite at the very centre —
+10. The final alpha keeps `keyhole_min_alpha` of the sprite at the very centre —
    for shell cells. Interior cells go fully transparent; a ghost of a hidden
    interior face is exactly what the shell split exists to remove.
 
@@ -499,7 +539,7 @@ instead of hard-cutting or dithering.
 ## 9. Entity geometry
 
 The player capsule in `scenes/level.tscn` is **1.8 grid layers tall**
-(`height = 35.272652` = `1.8 × Iso.cell().y`) with a radius of 5.0, its
+(`height = 35.27265` = `1.8 × Iso.cell().y`) with a radius of 5.0, its
 `CollisionShape3D` and `MeshInstance3D` both offset to `y = 17.636326` so the
 `CharacterBody3D` origin lands at the feet.
 
@@ -635,12 +675,18 @@ however far the column's key offset displaced the start depth. The walk steps by
 (`IsoGrid.cell_span()`) or `WALK_LIMIT` (64) steps elapse. All three coordinates
 increase monotonically, so one `>` test per axis suffices.
 
-Cells behind the body are discarded by a depth test rather than by the start
-position:
+Cells behind the body, and ramps the entity could step onto, are discarded by
+tests rather than by the start position:
 
 ```gdscript
-if type != null and (center + type.near_offset).dot(view) > floor_depth:
+if type != null and not is_steppable(type, c, floor_layer) \
+        and (center + type.near_offset).dot(view) > floor_depth:
 ```
+
+`is_steppable` is the gate-side half of the rule in §3, and the shader applies
+the identical test per fragment. Both are needed: without the gate-side filter a
+steppable ramp would still light its group, fading the *other* tiles of that
+group — walls the ramp happens to be fused with.
 
 `center + type.near_offset` is the tile's cameraward corner (the same quantity
 the shader's three-axis rule uses) and `floor_depth` is the body's *minimum*
@@ -798,6 +844,24 @@ is graceful and silent by design.
 For reference, the current `level.tscn`: 90 cells → 29 groups, largest 37, none
 ungrouped.
 
+### The query API `Level` uses
+
+`OccluderGroups.build` returns plain dictionaries; `IsoGrid._refresh_sprites`
+caches them (`_cell_group`, `_cell_shell`, `_group_count`, `_cell_lo`,
+`_cell_hi`) and exposes four accessors, which are the whole surface between the
+grid and the gate:
+
+| Method | Returns |
+|--------|---------|
+| `group_count()` | Number of fade groups, so `Level.refresh` can size its gate arrays. |
+| `cell_group(cell)` | The cell's group index, or `-1` when empty or ungrouped. Empty cells return `-1` immediately, which is what makes the walk cheap. |
+| `cell_type(cell)` | The cell's render type dictionary (`depth`, `region_size`, `origin`, `near_offset`, …), or `null` when the cell is empty. |
+| `cell_span()` | `[lo, hi]` inclusive cell bounds of everything placed, used to terminate the diagonal walk. |
+
+`Level` holds the grid twice: `_grid` typed as `GridMap` for the position
+lookups, and `_iso` as `IsoGrid` for these. `_iso` is `null` when the child is a
+plain `GridMap`, which disables the gate rather than erroring.
+
 ### Known trade-off
 
 Corner fusion is offset-based, so two structures that merely *meet* at that offset
@@ -880,6 +944,7 @@ Level._process (per frame):          │
   _gather_occluders:
     9 body samples ─▶ screen px
     per screen column in the COLUMN_SPREAD band: walk c + n*(1,1,1)
+        └─▶ is_steppable (drop ramps the entity can step onto)
         └─▶ depth test vs type.near_offset (drop cells behind the body)
         └─▶ MeshDepth.covered(type.depth, ...) ─▶ coverage per group ─▶ hits
 
@@ -897,10 +962,12 @@ IsoGrid._apply_occlusion (per cell, on refresh):
   tile_zones = InteriorZones.mask_at(_int_zones, cell_center)
   tile_group = _cell_group[cell]
   tile_shell = _cell_shell[cell]
+  tile_ramp  = type.ramp
         └─▶ instance shader parameters
 
 occlusion.gdshader fragment():
   overhead + shared zone      ─▶ ALPHA = 0            (bypasses the gate)
+  steppable ramp              ─▶ skipped for this entity
   else three-axis axis × disc ─▶ reveal
        × group gate           ─▶ only while really occluding
        shell vs interior      ─▶ soft gradient vs sharpened cut
@@ -931,6 +998,13 @@ occlusion.gdshader fragment():
 - **A short lip or first step ghosts a whole tile** — raise `KEY_MIN_RISE`. Keep
   it above `Player.max_step_px` in world units or the player will fade things it
   can simply walk onto.
+- **A ramp still fades while the player walks it** — check the tile's name is
+  matched by `IsoGrid._is_ramp` (`stairs`/`slope`), and that it really is at most
+  one layer above `_floor_cell(foot).y`. The steppable check in
+  `tools/keyhole_diag.gd` prints any misclassification.
+- **A ramp two layers up will still fade**, by design: the entity cannot step
+  onto it, and it would cover the body. Widen the rule only if
+  `keyhole_body_layers` grows past 2.
 - **A roof does not come off** — check that both the roof cells and the player's
   standing position are inside the same `interior` zone box, and that the roof is
   at least `KEY_ABOVE_LAYERS` above the player's floor layer. In the editor, drag
@@ -989,8 +1063,9 @@ godot --headless --path <project> --script res://tools/keyhole_diag.gd
 | **Synthetic layouts** | A flat wall (1 group, 0 interior), an L-corner (must fuse to 1 group), and an alcove return (the hidden cell must be interior, the front cell shell). These run on `OccluderGroups.build` directly, so they hold regardless of what the shipped level contains. |
 | **Occluder override** | Wraps the level in one `occluder` box, asserts it fuses to a single group, then removes it and asserts the original grouping returns. |
 | **Oracle sweep** | The important one. At 80 player positions across the built-up map it runs the cheap column walk *and* a brute-force scan of every placed cell, and asserts they agree — same groups, same coverage. This is what catches an incomplete `COLUMN_SPREAD` (§11). |
-| **Footing** | Sweeps every standable cell at 9 heights × 9 footprint offsets (5022 positions) and asserts the tile underfoot is never faded by the three-axis rule. Reverting `_footing_y` to the raw feet fails 424 of 558 at the narrower sampling. |
+| **Footing** | Sweeps every standable cell at 9 heights × 9 footprint offsets (5022 positions) and asserts the tile underfoot is never faded by the three-axis rule. Reverting `_footing_y` to the raw feet failed 424 of the 558 positions the earlier, centre-only sampling covered. |
 | **Ramp foot** | For every ramp that falls away from the camera, stands the entity on the neighbouring cell at the ramp's own base height and asserts it does not fade. Selects ramps by tile name, so it stays independent of the `near_offset` rule it checks. |
+| **Steppable ramps** | For every placed cell × a range of entity floor layers, re-derives "is this a ramp at most one layer up" from the tile's *name* and asserts `Level.is_steppable` agrees. Catches drift between the name convention and the layer arithmetic. |
 | **Fade ramp** | Prints the peak gate over 24 frames from a clean state; it must rise gradually rather than snapping to 1. |
 | **Gate range** | Asserts every gate stays within `[0,1]`, the precondition for the gate being purely subtractive (§13). |
 
@@ -1008,9 +1083,12 @@ own column" enumeration — fails 33 of the 80 positions.
 ### Two things the diag does not cover
 
 - **The shader path.** `keyhole_diag` is headless, so it never rasterises. To
-  confirm the shader consumes `tile_group` / `tile_shell`, run windowed and force
-  the parameter across the sprite layer — flipping `tile_shell` to 0.0 on every
-  billboard must change the frame.
+  confirm the shader consumes `tile_group` / `tile_shell` / `tile_ramp`, run
+  windowed and force the parameter across the sprite layer — flipping it on every
+  billboard must change the frame. For `tile_ramp`, disable
+  `keyhole_require_occlusion` first: otherwise the gate-side filter has already
+  zeroed that group and masks the shader's own skip (the two agreeing is the
+  point, but it makes the shader path untestable while both are live).
 - **The subtractive property, empirically.** The diag asserts the precondition
   (gates in `[0,1]`); the guarantee itself comes from the shader's
   `mix(1.0, faded_alpha, gate)` form (§13), not from a pixel test.
@@ -1023,3 +1101,8 @@ with the outline system. After any change here, also run the outline suite from
 `ramp_diag`, `stair_slope_diag`, `repro`, `repro2`, `tile_fit` — and diff the
 output text; it should be byte-identical. Note that `stair_slope_diag` loads
 `scenes/level.tscn`, so editing the level legitimately changes its output.
+
+For a pure refactor the strongest check is pixel equality: render the same set of
+settled player positions before and after and `cmp` the PNGs. Anything that
+survives that plus an identical `keyhole_diag` transcript has not changed
+behaviour.

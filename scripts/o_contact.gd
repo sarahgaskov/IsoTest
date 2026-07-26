@@ -2,8 +2,7 @@
 extends RefCounted
 class_name OcclusionContact
 
-# Detects where a placed cell touches its neighbors, per silhouette edge, as a
-# [t0,t1] contact span along that edge. See docs/outline_occlusion.md.
+# Where a cell touches its neighbors, per edge. See docs/outline_occlusion.md.
 
 const SLOP_PX = 6.0     # px of outward probing for the neighbor's surface
 const DEPTH_TOL = 1.23  # world-unit slack for "surfaces touch"
@@ -47,8 +46,7 @@ static func resolve(grid: GridMap, cell: Vector3i, types: Dictionary) -> Diction
 
 	return {"neighbors": neighbors, "spans": spans}
 
-# Union of overlapping/near-touching runs along one edge, keeping the longest;
-# null when even that is shorter than a corner halo.
+# Longest union of overlapping runs along one edge; null below a corner halo.
 static func _merge(runs: Array) -> Variant:
 	if runs.is_empty(): return null
 	runs.sort_custom(func(a, b): return a.x < b.x)
@@ -64,8 +62,7 @@ static func _merge(runs: Array) -> Variant:
 		if i < runs.size(): cur = runs[i]
 	return best if best.y - best.x >= MIN_SPAN else null
 
-# Per-direction contact runs of one type pair at one cell offset. Depends only
-# on the two types and the offset, so memoized until the next rebuild.
+# Contact runs of one type pair at one offset; memoized until the next rebuild.
 static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dictionary, off: Vector3i) -> Array:
 	var key = a_id | (b_id << ID_BITS) | ((off.x + 1) << 20) | ((off.y + 1) << 22) | ((off.z + 1) << 24)
 	if _cache.has(key):
@@ -75,15 +72,12 @@ static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dict
 	var runs := []
 	for d in 6: runs.append([])
 
-	# Tiles are UNIT tall but cells are shorter, so a surface continuing across
-	# a layer boundary sits exactly that far off: evaluate vertical offsets at
-	# both the true placement and the overlap-corrected one.
+	# Cells are shorter than UNIT, so vertical offsets get both placements.
 	var worlds = [Vector3(off) * grid.cell_size]
 	if off.y != 0:
 		worlds.append(Vector3(off) * Vector3(grid.cell_size.x, Iso.UNIT, grid.cell_size.z))
 
-	# An identical tile at this tile's own ramp_chain offset is a designed
-	# seamless join, so per-step depth jaggedness must not break the seam.
+	# An identical tile at its own ramp_chain offset is a designed seamless join.
 	var chain = a.get("ramp_chain")
 	var ramp_bridge = a_id == b_id and chain != null and (off == chain or off == -chain)
 
@@ -96,10 +90,7 @@ static func _contact(grid: GridMap, a_id: int, b_id: int, a: Dictionary, b: Dict
 	_cache[key] = runs
 	return runs
 
-# Contact span(s) along edge d of a, against b sitting `screen` px away and
-# `shift` world units deeper. A probe contacts when b covers its outward side
-# and a's depth there matches b's front or back surface within DEPTH_TOL;
-# a contacting probe erases its whole [t_lo, t_hi] range.
+# Contact spans along edge d of a, against b `screen` px away and `shift` deeper.
 static func _span(a: Dictionary, b: Dictionary, d: int, screen: Vector2, shift: float, off: Vector3i, ramp_bridge: bool) -> Array:
 	if (a.present & (1 << d)) == 0:
 		return []

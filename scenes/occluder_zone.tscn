@@ -1,14 +1,6 @@
 [gd_scene format=3 uid="uid://bxgkw0md8liwu"]
 
-; Drop one of these over a structure and drag the box (the CollisionShape3D
-; gizmo) to cover it. Every tile whose cell center falls inside fades as a
-; single unit, overriding the automatic wall grouping.
-;
-; Union-only: a box can force separate walls to fade together, but it cannot
-; split apart a group the automatic rules already fused.
-;
-; It is a plain marker: no physics, detected by iso_grid via the "occluder"
-; group. See docs/player_transparency.md.
+; Drag over a structure: every tile inside fades as one, union-only. See docs/player_transparency.md.
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_occ"]
 size = Vector3(72, 48, 72)

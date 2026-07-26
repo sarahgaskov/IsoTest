@@ -2,8 +2,7 @@
 extends GridMap
 class_name IsoGrid
 
-# The grid, the sprite layer, and the tile-type cache the occlusion and keyhole
-# systems feed on. See docs/outline_occlusion.md and docs/player_transparency.md.
+# Grid, sprite layer and tile-type cache. See docs/outline_occlusion.md and docs/player_transparency.md.
 
 const LIB_PATH = "res://assets/mesh_lib/tiles.tres"
 const OCC_SHADER = preload("res://assets/shaders/occlusion.gdshader")
@@ -98,8 +97,7 @@ func rebuild() -> void:
 	var sheets: Array = paths.map(func(p): return load(p) as Texture2D)
 	var lib = _fresh_library()
 
-	# GridMap keeps collision + palette preview; placed cells carry a mesh only
-	# in the 3D debug view.
+	# GridMap keeps collision + palette preview; meshes only in the 3D debug view.
 	for id in data.tiles.size():
 		var tile: Dictionary = data.tiles[id]
 		lib.create_item(id)
@@ -123,8 +121,7 @@ func rebake() -> void:
 		if FileAccess.file_exists(cache): DirAccess.remove_absolute(ProjectSettings.globalize_path(cache))
 	rebuild()
 
-# Build the render type for each requested tile id into _types, additively:
-# rasterizing a mesh and walking its probes is the pipeline's one heavy step.
+# Build the requested tile ids into _types, additively: this is the heavy step.
 func _build_types(want: Array) -> void:
 	if want.is_empty(): return
 	var data = JSON.parse_string(FileAccess.get_file_as_string(config))
@@ -158,12 +155,7 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 	
 	var occ_faces = _faces(tile)
 
-	# The solid's cameraward corner, relative to the cell center. X and Z take the
-	# bounding box, which the solid really does reach. Y instead takes the height
-	# of the vertex nearest the camera: a ramp's bounding-box top floats in the
-	# air above its low cameraward end, and testing against it makes the ramp fade
-	# while an entity stands at its foot. A cube's nearest vertex is its
-	# (max, max, max) corner, so cubes are unaffected. Keyhole input only.
+	# Cameraward corner: bbox in X/Z, nearest vertex's height in Y (keyhole input).
 	var view := Iso.facing().z
 	var bounds := Vector3.ZERO
 	var near_y := 0.0
@@ -228,6 +220,7 @@ func _make_type(tile: Dictionary, sheet: Image, mask: Image, raw: Image, baked: 
 		"origin": MeshDepth.origin(size, offset),
 		"probes": probes,
 		"ramp_chain": _ramp_chain(tile),
+		"ramp": _is_ramp(tile),
 		"near_offset": near_offset,
 	}
 
@@ -255,12 +248,14 @@ func _zeros(v: Variant) -> Array:
 # One .obj serves all four cardinal facings: tiles pick one with "rot".
 const ROT = {"n": 0.0, "e": -PI / 2, "s": PI, "w": PI / 2}
 
-# Horizontal ascent direction (grid units) of a tile authored facing "n"
-# (ascending toward -Z), rotated per "rot" the same way _faces() rotates the mesh.
+# Horizontal ascent of a tile authored facing "n", rotated per "rot".
 const RAMP_DIR = {"n": Vector2i(0, -1), "e": Vector2i(1, 0), "s": Vector2i(0, 1), "w": Vector2i(-1, 0)}
 
-# Offset to the cell that continues the same ramp: one along, one up. Corner
-# pieces have no single ascent direction and are excluded.
+# Stairs and slopes, corner pieces included: tiles an entity can walk up.
+func _is_ramp(tile: Dictionary) -> bool:
+	return tile.name.contains("stairs") or tile.name.contains("slope")
+
+# Offset continuing the same ramp: one along, one up. Corner pieces excluded.
 func _ramp_chain(tile: Dictionary) -> Variant:
 	var name: String = tile.name
 	if not (name.begins_with("stairs_") or name.begins_with("slope_")):
@@ -378,6 +373,7 @@ func _apply_occlusion(mi: MeshInstance3D, cell: Vector3i, type: Dictionary) -> v
 	# Fade group, and whether this cell is the group's camera-facing shell.
 	mi.set_instance_shader_parameter("tile_group", _cell_group.get(cell, -1))
 	mi.set_instance_shader_parameter("tile_shell", 1.0 if _cell_shell.get(cell, true) else 0.0)
+	mi.set_instance_shader_parameter("tile_ramp", 1.0 if type.ramp else 0.0)
 
 func _zones_hash() -> int:
 	return InteriorZones.hash_of(get_tree())
@@ -413,8 +409,7 @@ func _collision(tile: Dictionary) -> Shape3D:
 	shape.set_faces(_faces(tile))
 	return shape
 
-# Reuse the resource already on disk so its UID stays stable across rebuilds
-# (unless it no longer loads, e.g. it references since-deleted assets).
+# Reuse the resource on disk so its UID stays stable across rebuilds.
 func _fresh_library() -> MeshLibrary:
 	if not ResourceLoader.exists(LIB_PATH):
 		return MeshLibrary.new()
@@ -437,8 +432,7 @@ func _region(tile: Dictionary) -> Rect2:
 
 # = IN-EDITOR Helpers =
 
-# Switch the editor viewport to orthogonal via its own view menu, then place
-# its camera; in ortho the pivot is origin - basis.z * (far - near) / 2.
+# Switch the editor viewport to orthogonal, then place its camera at the pivot.
 func snap_editor_view() -> void:
 	if not Engine.is_editor_hint():
 		return

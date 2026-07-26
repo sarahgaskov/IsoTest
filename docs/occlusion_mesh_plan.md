@@ -1,5 +1,12 @@
 # Mesh-driven outline occlusion — implementation plan
 
+> **HISTORICAL.** This is the original design document, kept for the reasoning
+> behind the approach and the alternatives that were rejected. Its identifiers
+> are plan-stage names (`GAP_PX`, `MIN_SPAN_PX`, `silhouette_edge`, …) and do
+> **not** all match the shipped code. For what the code actually does today, read
+> [`outline_occlusion.md`](outline_occlusion.md) and
+> [`player_transparency.md`](player_transparency.md).
+
 > **STATUS: IMPLEMENTED** (see `docs/outline_occlusion.md` for the living reference).
 > Verified by `tools/occ_diag.gd`: span table matches §5's sanity values and
 > the per-pixel + composited output of `scenes/level.tscn` is identical to the

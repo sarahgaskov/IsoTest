@@ -2,8 +2,7 @@
 extends RefCounted
 class_name MeshDepth
 
-# A tile's mesh rasterized through the fixed iso projection into a per-pixel
-# [front, back] depth span. See docs/outline_occlusion.md.
+# Mesh rasterized to a per-pixel [front, back] depth span. See docs/outline_occlusion.md.
 
 const EMPTY = Vector2(INF, -INF)  # uncovered pixel
 const MAX_WALK = 24  # px, inward walk across the mask/mesh border

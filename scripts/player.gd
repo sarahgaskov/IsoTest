@@ -1,16 +1,7 @@
 extends CharacterBody3D
 class_name Player
 
-# A minimal isometric walker. Input maps to the four on-screen diagonals (the
-# world's grid axes as seen through the fixed iso camera), so pressing "up"
-# walks the character away from the camera along a grid diagonal, etc.
-#
-# Collision is handled by move_and_slide (slopes are walkable under floor_max_angle);
-# short vertical steps — stair risers, a slab_1 lip — are climbed by a small
-# step-up assist. Anything taller than max_step_px reads as a wall and blocks.
-#
-# The capsule in level.tscn is 1.8 grid layers tall; keep Level.keyhole_body_layers
-# in sync with it so the transparency disc stays centered on the body.
+# Isometric walker. Capsule is 1.8 layers tall; keep Level.keyhole_body_layers in sync.
 
 ## Ground speed in world units per second.
 @export var speed: float = 42.0
@@ -44,9 +35,7 @@ func _physics_process(delta: float) -> void:
 	_step_up_assist(delta)
 	move_and_slide()
 
-# On-screen input (WASD / arrows) mapped to ground movement along the camera's
-# projected axes. Screen-right and screen-up (into the screen) are perpendicular
-# world diagonals here, so the result runs along the isometric grid.
+# WASD / arrows mapped to the camera's projected axes, i.e. the grid diagonals.
 func _input_dir() -> Vector3:
 	var iv := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): iv.y -= 1.0
@@ -62,9 +51,7 @@ func _input_dir() -> Vector3:
 	var fwd := Vector3(-b.z.x, 0.0, -b.z.z).normalized()   # into the screen
 	return (right * iv.x - fwd * iv.y).normalized()
 
-# If the horizontal path is blocked but would be clear one step higher, lift the
-# body by max_step before move_and_slide; floor snapping then re-grounds it on
-# the step top. A too-tall obstacle is still blocked when raised, so it stays a wall.
+# Lift by max_step when the path is blocked but clear a step up; snapping regrounds.
 func _step_up_assist(delta: float) -> void:
 	if not is_on_floor():
 		return

@@ -2,12 +2,9 @@
 extends RefCounted
 class_name OccluderGroups
 
-# Bakes the placed cells into fade groups (one per wall, corners fused) and
-# marks each cell's shell flag. See docs/player_transparency.md.
+# Bakes placed cells into fade groups and shell flags. See docs/player_transparency.md.
 
-# The camera looks straight down the grid diagonal, so the cell directly in
-# front of `c` is `c + VIEW_STEP` and a whole column shares one screen position.
-# Exact only while sin(Iso.PITCH) == Iso.LAYER_PX / (2 * Iso.UNIT).
+# The camera looks straight down this diagonal, so `c + VIEW_STEP` is in front of `c`.
 const VIEW_STEP = Vector3i(1, 1, 1)
 
 const MAX_GROUPS = 4096  # gate texture width; overflow falls back to ungrouped
@@ -26,14 +23,13 @@ static func diagonal_is_exact() -> bool:
 static func collect_zones(tree: SceneTree) -> Array:
 	return InteriorZones.boxes(tree, &"occluder", MAX_ZONES)
 
-# -> {group: {Vector3i: int}, shell: {Vector3i: bool}, count: int,
-#     lo: Vector3i, hi: Vector3i}
+# -> {group: {Vector3i: int}, shell: {Vector3i: bool}, count: int, lo, hi: Vector3i}
 static func build(cells: Array, grid: GridMap = null, zones: Array = []) -> Dictionary:
 	var filled := {}
-	for c in cells: filled[c] = true
-
 	var parent := {}
-	for c in cells: parent[c] = c
+	for c in cells:
+		filled[c] = true
+		parent[c] = c
 
 	# A wall is the run of cells showing the same camera-facing vertical face.
 	for c in cells:
@@ -46,9 +42,7 @@ static func build(cells: Array, grid: GridMap = null, zones: Array = []) -> Dict
 				if filled.has(c + n) and not filled.has(c + n + FZ):
 					_union(parent, c, c + n)
 
-	# Two walls meeting at a corner bury each other's shared faces, so no single
-	# cell shows both. Fuse an +X face with the +Z face that turns the corner
-	# from it — the only offset at which the two can both stay exposed.
+	# Corners bury both faces; (1,0,-1) is the only offset where both stay exposed.
 	for c in cells:
 		if filled.has(c + FX):
 			continue
@@ -56,9 +50,7 @@ static func build(cells: Array, grid: GridMap = null, zones: Array = []) -> Dict
 		if filled.has(turn) and not filled.has(turn + FZ):
 			_union(parent, c, turn)
 
-	# A cell showing no camera-facing face of its own (an inner corner column,
-	# wall fill) joins whichever wall it backs onto, so the structure is one
-	# group. One hop only, so a floor's interior never chains across the map.
+	# A faceless cell joins the wall it backs onto — one hop, so floors never chain.
 	for c in cells:
 		if not filled.has(c + FX) or not filled.has(c + FZ):
 			continue
@@ -68,9 +60,7 @@ static func build(cells: Array, grid: GridMap = null, zones: Array = []) -> Dict
 				_union(parent, c, q)
 				break
 
-	# Designer override: every cell whose center falls inside the same "occluder"
-	# box fades as one. Applied last, and union-only — a box can force walls
-	# together but cannot split a group the rules above already fused.
+	# Designer override, applied last and union-only: it can fuse, never split.
 	if grid != null and not zones.is_empty():
 		var anchor := {}
 		for c in cells:
@@ -100,12 +90,11 @@ static func build(cells: Array, grid: GridMap = null, zones: Array = []) -> Dict
 		var g: int = group[c]
 		shell[c] = g < 0 or group.get(c + VIEW_STEP, -1) != g
 
-	var lo := Vector3i(0, 0, 0)
-	var hi := Vector3i(0, 0, 0)
-	for i in cells.size():
-		var c: Vector3i = cells[i]
-		lo = c if i == 0 else lo.min(c)
-		hi = c if i == 0 else hi.max(c)
+	var lo: Vector3i = cells[0] if not cells.is_empty() else Vector3i.ZERO
+	var hi := lo
+	for c in cells:
+		lo = lo.min(c)
+		hi = hi.max(c)
 
 	return {"group": group, "shell": shell, "count": ids.size(), "lo": lo, "hi": hi}
 

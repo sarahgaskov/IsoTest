@@ -2,8 +2,7 @@
 extends RefCounted
 class_name OcclusionMaskBaker
 
-# Bakes the hand-painted occlusion masks into per-tile edge segments.
-# See docs/outline_occlusion.md.
+# Bakes painted occlusion masks into edge segments. See docs/outline_occlusion.md.
 
 # Direction colors on the mask, clockwise from top-left: NW NE E SE SW W.
 const DIR_COLORS = [
@@ -11,8 +10,7 @@ const DIR_COLORS = [
 	Color(0, 0, 1), Color(1, 1, 0), Color(1, 0, 1),
 ]
 
-# Baked contact data for every tile on a sheet, rebaking only when the mask
-# changed. One dict per region: {edges, out, present}, or [] with no mask.
+# {edges, out, present} per region, rebaked only when the mask changed.
 static func ensure(sheet_path: String, regions: Array) -> Array:
 	var mask_path = _sibling(sheet_path, "_o.png")
 	if not FileAccess.file_exists(mask_path):
