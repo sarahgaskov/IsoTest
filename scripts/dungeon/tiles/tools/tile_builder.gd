@@ -31,7 +31,8 @@ static func tile_mesh(tile: Dictionary) -> ArrayMesh:
 	
 	# Find normal to each triangle and color faces
 	for i in range(0, faces.size(), 3):
-		var normal = (faces[i + 1] - faces[i]).cross(faces[i + 2] - faces[i]).normalized()
+		var normal = Plane(faces[i], faces[i + 1], faces[i + 2]).normal
+		st.set_normal(normal)
 		st.set_color(facing_color(normal))
 		for j in 3: st.add_vertex(faces[i + j])
 	
@@ -53,6 +54,5 @@ static func facing_color(normal: Vector3) -> Color:
 static func _mesh_material() -> StandardMaterial3D:
 	if _material == null:
 		_material = StandardMaterial3D.new()
-		_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		_material.vertex_color_use_as_albedo = true
 	return _material

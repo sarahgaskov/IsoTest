@@ -4,19 +4,18 @@
 [ext_resource type="Texture2D" uid="uid://byhstoi607x8" path="res://assets/gfx/dungeon/tiles/desert/misc_desert.png" id="2_qi0q0"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2xqry"]
-shading_mode = 0
 vertex_color_use_as_albedo = true
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_qi0q0"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_edcu7"]
@@ -26,13 +25,13 @@ region = Rect2(192, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_ful66"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_pourq"]
@@ -42,13 +41,13 @@ region = Rect2(256, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_0wmjn"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_rkdb0"]
@@ -58,13 +57,13 @@ region = Rect2(320, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_wsunw"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_qhf0b"]
@@ -74,13 +73,13 @@ region = Rect2(384, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_4hle4"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_7gxv3"]
@@ -90,13 +89,13 @@ region = Rect2(0, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_qep7x"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_i4mh7"]
@@ -106,13 +105,13 @@ region = Rect2(64, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_66gge"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_xmov3"]
@@ -122,13 +121,13 @@ region = Rect2(128, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_56xf2"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_oy0u6"]
@@ -138,13 +137,13 @@ region = Rect2(192, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_2lron"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_a0qvi"]
@@ -154,13 +153,13 @@ region = Rect2(256, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_yqaeh"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ow5e0"]
@@ -170,13 +169,13 @@ region = Rect2(320, 0, 64, 64)
 [sub_resource type="ArrayMesh" id="ArrayMesh_byi5m"]
 _surfaces = [{
 "aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
-"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
-"format": 34359738377,
+"attribute_data": PackedByteArray("aKUh/2ilIf9opSH/aKUh/2ilIf9opSH/"),
+"format": 34359738383,
 "material": SubResource("StandardMaterial3D_2xqry"),
 "primitive": 3,
 "uv_scale": Vector4(0, 0, 0, 0),
 "vertex_count": 6,
-"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
 }]
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_fuv7v"]
