@@ -1,0 +1,274 @@
+[gd_resource type="MeshLibrary" format=4 uid="uid://dakkmcmfbqf1o"]
+
+[ext_resource type="Texture2D" uid="uid://cbmanvhcujcx3" path="res://assets/gfx/dungeon/tiles/city/concrete_floor_city.png" id="1_2xqry"]
+[ext_resource type="Texture2D" uid="uid://byhstoi607x8" path="res://assets/gfx/dungeon/tiles/desert/misc_desert.png" id="2_qi0q0"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2xqry"]
+shading_mode = 0
+vertex_color_use_as_albedo = true
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_qi0q0"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_edcu7"]
+atlas = ExtResource("1_2xqry")
+region = Rect2(192, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_ful66"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_pourq"]
+atlas = ExtResource("1_2xqry")
+region = Rect2(256, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_0wmjn"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_rkdb0"]
+atlas = ExtResource("1_2xqry")
+region = Rect2(320, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_wsunw"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_qhf0b"]
+atlas = ExtResource("1_2xqry")
+region = Rect2(384, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_4hle4"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7gxv3"]
+atlas = ExtResource("2_qi0q0")
+region = Rect2(0, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_qep7x"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_i4mh7"]
+atlas = ExtResource("2_qi0q0")
+region = Rect2(64, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_66gge"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_xmov3"]
+atlas = ExtResource("2_qi0q0")
+region = Rect2(128, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_56xf2"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_oy0u6"]
+atlas = ExtResource("2_qi0q0")
+region = Rect2(192, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_2lron"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_a0qvi"]
+atlas = ExtResource("2_qi0q0")
+region = Rect2(256, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_yqaeh"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_ow5e0"]
+atlas = ExtResource("2_qi0q0")
+region = Rect2(320, 0, 64, 64)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_byi5m"]
+_surfaces = [{
+"aabb": AABB(-12, -9.797959, -12, 24, 1e-05, 24),
+"attribute_data": PackedByteArray("pSFG/6UhRv+lIUb/pSFG/6UhRv+lIUb/"),
+"format": 34359738377,
+"material": SubResource("StandardMaterial3D_2xqry"),
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 6,
+"vertex_data": PackedByteArray("AABAQXHEHMEAAEBBAABAwXHEHMEAAEBBAABAQXHEHMEAAEDBAABAQXHEHMEAAEDBAABAwXHEHMEAAEBBAABAwXHEHMEAAEDB")
+}]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_fuv7v"]
+atlas = ExtResource("2_qi0q0")
+region = Rect2(384, 0, 64, 64)
+
+[resource]
+item/24/name = "concrete_floor_a"
+item/24/mesh = SubResource("ArrayMesh_qi0q0")
+item/24/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/24/mesh_cast_shadow = 1
+item/24/shapes = []
+item/24/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/24/navigation_layers = 1
+item/24/preview = SubResource("AtlasTexture_edcu7")
+item/25/name = "concrete_floor_b"
+item/25/mesh = SubResource("ArrayMesh_ful66")
+item/25/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/25/mesh_cast_shadow = 1
+item/25/shapes = []
+item/25/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/25/navigation_layers = 1
+item/25/preview = SubResource("AtlasTexture_pourq")
+item/26/name = "concrete_floor_c"
+item/26/mesh = SubResource("ArrayMesh_0wmjn")
+item/26/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/26/mesh_cast_shadow = 1
+item/26/shapes = []
+item/26/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/26/navigation_layers = 1
+item/26/preview = SubResource("AtlasTexture_rkdb0")
+item/27/name = "concrete_floor_d"
+item/27/mesh = SubResource("ArrayMesh_wsunw")
+item/27/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/27/mesh_cast_shadow = 1
+item/27/shapes = []
+item/27/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/27/navigation_layers = 1
+item/27/preview = SubResource("AtlasTexture_qhf0b")
+item/50/name = "desert_ground_a"
+item/50/mesh = SubResource("ArrayMesh_4hle4")
+item/50/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/50/mesh_cast_shadow = 1
+item/50/shapes = []
+item/50/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/50/navigation_layers = 1
+item/50/preview = SubResource("AtlasTexture_7gxv3")
+item/51/name = "desert_ground_b"
+item/51/mesh = SubResource("ArrayMesh_qep7x")
+item/51/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/51/mesh_cast_shadow = 1
+item/51/shapes = []
+item/51/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/51/navigation_layers = 1
+item/51/preview = SubResource("AtlasTexture_i4mh7")
+item/52/name = "desert_ground_c"
+item/52/mesh = SubResource("ArrayMesh_66gge")
+item/52/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/52/mesh_cast_shadow = 1
+item/52/shapes = []
+item/52/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/52/navigation_layers = 1
+item/52/preview = SubResource("AtlasTexture_xmov3")
+item/53/name = "desert_ground_d"
+item/53/mesh = SubResource("ArrayMesh_56xf2")
+item/53/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/53/mesh_cast_shadow = 1
+item/53/shapes = []
+item/53/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/53/navigation_layers = 1
+item/53/preview = SubResource("AtlasTexture_oy0u6")
+item/54/name = "desert_ground_e"
+item/54/mesh = SubResource("ArrayMesh_2lron")
+item/54/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/54/mesh_cast_shadow = 1
+item/54/shapes = []
+item/54/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/54/navigation_layers = 1
+item/54/preview = SubResource("AtlasTexture_a0qvi")
+item/55/name = "desert_ground_f"
+item/55/mesh = SubResource("ArrayMesh_yqaeh")
+item/55/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/55/mesh_cast_shadow = 1
+item/55/shapes = []
+item/55/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/55/navigation_layers = 1
+item/55/preview = SubResource("AtlasTexture_ow5e0")
+item/56/name = "desert_ground_g"
+item/56/mesh = SubResource("ArrayMesh_byi5m")
+item/56/mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/56/mesh_cast_shadow = 1
+item/56/shapes = []
+item/56/navigation_mesh_transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+item/56/navigation_layers = 1
+item/56/preview = SubResource("AtlasTexture_fuv7v")

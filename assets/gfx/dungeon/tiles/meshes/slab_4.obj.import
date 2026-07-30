@@ -1,0 +1,25 @@
+[remap]
+
+importer="wavefront_obj"
+importer_version=1
+type="Mesh"
+uid="uid://r02yugyont6t"
+path="res://.godot/imported/slab_4.obj-34cb9a360db7ee73223c4b3993d19eab.mesh"
+
+[deps]
+
+files=["res://.godot/imported/slab_4.obj-34cb9a360db7ee73223c4b3993d19eab.mesh"]
+
+source_file="res://assets/gfx/dungeon/tiles/meshes/slab_4.obj"
+dest_files=["res://.godot/imported/slab_4.obj-34cb9a360db7ee73223c4b3993d19eab.mesh", "res://.godot/imported/slab_4.obj-34cb9a360db7ee73223c4b3993d19eab.mesh"]
+
+[params]
+
+generate_tangents=true
+generate_lods=true
+generate_shadow_mesh=true
+generate_lightmap_uv2=false
+generate_lightmap_uv2_texel_size=0.2
+scale_mesh=Vector3(1, 1, 1)
+offset_mesh=Vector3(0, 0, 0)
+force_disable_mesh_compression=false

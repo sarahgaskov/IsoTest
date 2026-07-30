@@ -1,0 +1,701 @@
+{
+ "tilesheets": [
+  {
+   "path": "res://assets/gfx/dungeon/tiles/dev/block_dev.png",
+   "layer": 1
+  },
+  {
+   "path": "res://assets/gfx/dungeon/tiles/dev/stairs_dev.png",
+   "layer": 1
+  },
+  {
+   "path": "res://assets/gfx/dungeon/tiles/dev/slopes_dev.png",
+   "layer": 1
+  },
+  {
+   "path": "res://assets/gfx/dungeon/tiles/city/concrete_floor_city.png",
+   "layer": 1
+  },
+  {
+   "path": "res://assets/gfx/dungeon/tiles/city/trailer_floor_city.png",
+   "layer": 1
+  },
+  {
+   "path": "res://assets/gfx/dungeon/tiles/city/trailer_walls_city.png",
+   "layer": 1
+  },
+  {
+   "path": "res://assets/gfx/dungeon/tiles/desert/misc_desert.png",
+   "layer": 0
+  },
+  {
+   "path": "res://assets/gfx/dungeon/tiles/city/concrete_floor_city.png",
+   "layer": 0
+  }
+ ],
+ "tiles": [
+  {
+   "name": "slab_5",
+   "sheet": 0,
+   "sheet_region": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_5.obj"
+  },
+  {
+   "name": "slab_4",
+   "sheet": 0,
+   "sheet_region": [
+    64,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_4.obj"
+  },
+  {
+   "name": "slab_3",
+   "sheet": 0,
+   "sheet_region": [
+    128,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_3.obj"
+  },
+  {
+   "name": "slab_2",
+   "sheet": 0,
+   "sheet_region": [
+    192,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_2.obj"
+  },
+  {
+   "name": "slab_1",
+   "sheet": 0,
+   "sheet_region": [
+    256,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_1.obj"
+  },
+  {
+   "name": "stairs_n",
+   "sheet": 1,
+   "sheet_region": [
+    64,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/stairs.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "stairs_e",
+   "sheet": 1,
+   "sheet_region": [
+    448,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/stairs.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "stairs_s",
+   "sheet": 1,
+   "sheet_region": [
+    320,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/stairs.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "stairs_w",
+   "sheet": 1,
+   "sheet_region": [
+    192,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/stairs.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "corner_stairs_n",
+   "sheet": 1,
+   "sheet_region": [
+    128,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/corner_stairs.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "corner_stairs_e",
+   "sheet": 1,
+   "sheet_region": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/corner_stairs.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "corner_stairs_s",
+   "sheet": 1,
+   "sheet_region": [
+    384,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/corner_stairs.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "corner_stairs_w",
+   "sheet": 1,
+   "sheet_region": [
+    256,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/corner_stairs.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "slope_n",
+   "sheet": 2,
+   "sheet_region": [
+    64,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slope.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "slope_e",
+   "sheet": 2,
+   "sheet_region": [
+    448,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slope.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "slope_s",
+   "sheet": 2,
+   "sheet_region": [
+    320,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slope.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "slope_w",
+   "sheet": 2,
+   "sheet_region": [
+    192,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slope.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "corner_slope_n",
+   "sheet": 2,
+   "sheet_region": [
+    128,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/corner_slope.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "corner_slope_e",
+   "sheet": 2,
+   "sheet_region": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/corner_slope.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "corner_slope_s",
+   "sheet": 2,
+   "sheet_region": [
+    384,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/corner_slope.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "corner_slope_w",
+   "sheet": 2,
+   "sheet_region": [
+    256,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/corner_slope.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "concrete_curb_a",
+   "sheet": 3,
+   "sheet_region": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_1.obj"
+  },
+  {
+   "name": "concrete_curb_b",
+   "sheet": 3,
+   "sheet_region": [
+    64,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_1.obj"
+  },
+  {
+   "name": "concrete_curb_c",
+   "sheet": 3,
+   "sheet_region": [
+    128,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_1.obj"
+  },
+  {
+   "name": "concrete_floor_a",
+   "sheet": 7,
+   "sheet_region": [
+    192,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "concrete_floor_b",
+   "sheet": 7,
+   "sheet_region": [
+    256,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "concrete_floor_c",
+   "sheet": 7,
+   "sheet_region": [
+    320,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "concrete_floor_d",
+   "sheet": 7,
+   "sheet_region": [
+    384,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "concrete_curb_round_n",
+   "sheet": 3,
+   "sheet_region": [
+    448,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/curved_slab.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "concrete_curb_round_s",
+   "sheet": 3,
+   "sheet_region": [
+    512,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/curved_slab.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "concrete_curb_round_e",
+   "sheet": 3,
+   "sheet_region": [
+    576,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/curved_slab.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "concrete_curb_round_w",
+   "sheet": 3,
+   "sheet_region": [
+    640,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/curved_slab.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "trailer_floor",
+   "sheet": 4,
+   "sheet_region": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "trailer_base",
+   "sheet": 4,
+   "sheet_region": [
+    64,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/slab_5.obj"
+  },
+  {
+   "name": "trailer_wall_a_w",
+   "sheet": 5,
+   "sheet_region": [
+    64,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "trailer_wall_a_corner_n",
+   "sheet": 5,
+   "sheet_region": [
+    128,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall_corner.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "trailer_wall_a_n",
+   "sheet": 5,
+   "sheet_region": [
+    192,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "trailer_wall_a_corner_w",
+   "sheet": 5,
+   "sheet_region": [
+    0,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall_corner.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "trailer_wall_a_s",
+   "sheet": 5,
+   "sheet_region": [
+    64,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "trailer_wall_a_corner_s",
+   "sheet": 5,
+   "sheet_region": [
+    128,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall_corner.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "trailer_wall_a_e",
+   "sheet": 5,
+   "sheet_region": [
+    192,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "trailer_wall_a_corner_e",
+   "sheet": 5,
+   "sheet_region": [
+    256,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall_corner.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "trailer_wall_b_w",
+   "sheet": 5,
+   "sheet_region": [
+    384,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "trailer_wall_b_corner_n",
+   "sheet": 5,
+   "sheet_region": [
+    448,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall_corner.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "trailer_wall_b_n",
+   "sheet": 5,
+   "sheet_region": [
+    512,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall.obj",
+   "rotation": "n"
+  },
+  {
+   "name": "trailer_wall_b_corner_w",
+   "sheet": 5,
+   "sheet_region": [
+    320,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall_corner.obj",
+   "rotation": "w"
+  },
+  {
+   "name": "trailer_wall_b_s",
+   "sheet": 5,
+   "sheet_region": [
+    384,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "trailer_wall_b_corner_s",
+   "sheet": 5,
+   "sheet_region": [
+    448,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall_corner.obj",
+   "rotation": "s"
+  },
+  {
+   "name": "trailer_wall_b_e",
+   "sheet": 5,
+   "sheet_region": [
+    512,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "trailer_wall_b_corner_e",
+   "sheet": 5,
+   "sheet_region": [
+    576,
+    64,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/wall_corner.obj",
+   "rotation": "e"
+  },
+  {
+   "name": "desert_ground_a",
+   "sheet": 6,
+   "sheet_region": [
+    0,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "desert_ground_b",
+   "sheet": 6,
+   "sheet_region": [
+    64,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "desert_ground_c",
+   "sheet": 6,
+   "sheet_region": [
+    128,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "desert_ground_d",
+   "sheet": 6,
+   "sheet_region": [
+    192,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "desert_ground_e",
+   "sheet": 6,
+   "sheet_region": [
+    256,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "desert_ground_f",
+   "sheet": 6,
+   "sheet_region": [
+    320,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  },
+  {
+   "name": "desert_ground_g",
+   "sheet": 6,
+   "sheet_region": [
+    384,
+    0,
+    64,
+    64
+   ],
+   "mesh": "res://assets/gfx/dungeon/tiles/meshes/floor.obj"
+  }
+ ]
+}

@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="IsoTest"
-run/main_scene="uid://bbrvdbpscgh7g"
+run/main_scene="res://scenes/dungeon/levels/level.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -21,56 +21,10 @@ window/size/viewport_width=480
 window/size/viewport_height=270
 window/size/mode=3
 window/stretch/mode="viewport"
+window/stretch/aspect="ignore"
 window/stretch/scale_mode="integer"
-
-[physics]
-
-3d/physics_engine="Jolt Physics"
 
 [rendering]
 
 textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"
-
-[shader_globals]
-
-keyhole_data={
-"filter": "nearest",
-"repeat": "disable",
-"type": "sampler2D",
-"value": "res://icon.svg"
-}
-keyhole_count={
-"type": "int",
-"value": 0
-}
-keyhole_radius={
-"type": "float",
-"value": 46.0
-}
-keyhole_fade={
-"type": "float",
-"value": 24.0
-}
-keyhole_min_alpha={
-"type": "float",
-"value": 0.0
-}
-keyhole_above_reach={
-"type": "float",
-"value": 40.0
-}
-keyhole_groups={
-"filter": "nearest",
-"repeat": "disable",
-"type": "sampler2D",
-"value": "res://icon.svg"
-}
-keyhole_gate_enable={
-"type": "float",
-"value": 1.0
-}
-keyhole_shell_cut={
-"type": "float",
-"value": 1.0
-}
