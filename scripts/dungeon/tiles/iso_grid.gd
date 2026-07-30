@@ -74,7 +74,7 @@ func layers() -> Array:
 	for overlay in overlays:
 		var g = get_node_or_null(overlay) as GridMap
 		if g == null: continue
-		layers.append(overlay)
+		layers.append(g)
 	
 	return layers
 
