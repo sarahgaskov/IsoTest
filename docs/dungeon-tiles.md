@@ -2,7 +2,8 @@
 
 IsoTest is Imagima's dungeon tile system cut down to one job: painting correctly
 sized 3D meshes onto a stack of grids. No billboards, no shaders, no occlusion,
-no fade, no lighting, no player. What you see is the `.obj` itself.
+no fade, no player. What you see is the `.obj` itself. Light is photographed off
+these meshes rather than lit in game — see [dungeon-lighting.md](dungeon-lighting.md).
 
 **Two files and one node:**
 
