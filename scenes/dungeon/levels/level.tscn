@@ -6,9 +6,26 @@
 [ext_resource type="MeshLibrary" path="res://scenes/dungeon/tilesets/tile_mesh_lib_2.tres" id="4_lib2"]
 [ext_resource type="Script" uid="uid://dl76gruoqc73p" path="res://scripts/dungeon/levels/level.gd" id="5_level"]
 [ext_resource type="Script" uid="uid://b46hddn0lhibw" path="res://scripts/dungeon/systems/lighting.gd" id="6_7e11o"]
+[ext_resource type="VoxelGIData" uid="uid://pya45l2votdw" path="res://data/lightdata/level_light.tres" id="7_unva3"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_unva3"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_v1dh6"]
+sky_material = SubResource("ProceduralSkyMaterial_unva3")
+
+[sub_resource type="Environment" id="Environment_53fa6"]
+background_mode = 2
+sky = SubResource("Sky_v1dh6")
+ssao_enabled = true
+sdfgi_enabled = true
 
 [node name="Level" type="Node3D" unique_id=1782592100]
 script = ExtResource("5_level")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=887371090]
+environment = SubResource("Environment_53fa6")
 
 [node name="Layers" type="Node3D" parent="." unique_id=135847491]
 
@@ -39,6 +56,13 @@ metadata/_editor_floor_ = Vector3(0, 0, 0)
 script = ExtResource("6_7e11o")
 
 [node name="LightBake" type="VoxelGI" parent="Lighting" unique_id=1850227282]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -132, 29.393879, -24)
+size = Vector3(456, 58.787758, 336)
+data = ExtResource("7_unva3")
+
+[node name="SunLight" type="DirectionalLight3D" parent="Lighting" unique_id=487220287]
+transform = Transform3D(0.70710677, -0.70710677, 0, 0.70710677, 0.70710677, 0, 0, 0, 1, 0, 0, 0)
+shadow_enabled = true
 
 [node name="Camera3D" type="Camera3D" parent="." unique_id=154180964]
 transform = Transform3D(0.70710677, -0.35355338, 0.6123724, 0, 0.8660254, 0.5, -0.70710677, -0.35355338, 0.6123724, 100.94897, 220, 196.94897)
