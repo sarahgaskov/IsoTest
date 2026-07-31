@@ -30,9 +30,24 @@ by the pixel it lands on and the sprite is lit.
    appearing in this floor's picture.
 4. The frame is grabbed, boxed down from `supersample`, and saved as a png.
 
-Baking runs on the `Bake lighting` button, and automatically whenever `Level._ready` finds
-the tile stamp on disk no longer matches the tiles. Both are editor only — a bake writes
-to `res://`. The stamp is the same fingerprint the old GI bake used.
+The viewport is transparent and the bake environment's background is forced to clear colour,
+so **nothing but tiles reaches the film** — no sky, no horizon. The sky is still switched on
+as an ambient and reflection source, and the renderer keeps it for those even when it is never
+drawn, so shadows are filled exactly as they are in game.
+
+Alpha is **coverage, not light**: 1 where the bake saw a tile, 0 where it saw nothing. The
+light itself is bled a few pixels past every silhouette (`fix_alpha_edges`) before the
+downsample, because `Image.resize` knows nothing about alpha and would otherwise average
+every edge with transparent black and outline each tile in soot. So a sprite that overhangs
+its mesh by a pixel still samples real light.
+
+A bake happens when the `Bake lighting` button is pressed, or when `Level._ready` finds no
+bake on disk, or one whose tile stamp no longer matches the tiles. The stamp is the same
+fingerprint the old GI bake used.
+
+**Rendering works anywhere; saving does not.** `res://` is only a real directory in an editor
+build — an export packs it read-only. So a shipped game missing its bake still lights itself
+correctly, it just re-shoots into memory on every launch and warns. Ship the pngs.
 
 > The bake is offline, so **quality is free**. Nothing about it runs in game. Point
 > `bake_environment` at an `Environment` with SSIL, high SSAO, and a big shadow size and
@@ -58,8 +73,9 @@ px.y = (rect.end.y - view.y)      / IsoView.WORLD_PER_PX
 That is `LightBakeTools.to_pixel`. The depth component is thrown away — which is exactly
 why there is one image per elevation, since two elevations land on the same pixel.
 
-Set the pngs to **Lossless, no mipmaps, Nearest** in the import dock. Anything else
-softens the light across pixel boundaries and shows up as fringing on the sprites.
+Set the pngs to **Lossless, no mipmaps, Nearest** in the import dock, and leave the alpha
+channel alone. Anything else softens the light across pixel boundaries and shows up as
+fringing on the sprites.
 
 ## 3. Using it
 
@@ -125,10 +141,8 @@ shader. None of this exists yet — `LightBake` is the static half.
 
 ## 6. Editor aids
 
-- **Bake lighting** on `Level` — re-shoots every elevation and writes the pngs. Editor
-  only, writes to disk.
-- **`auto_bake`** on `LightBake` — re-shoots on scene load when the tiles have changed.
-  Turn it off if the reimport churn gets annoying.
+- **Bake lighting** on `Level` — re-shoots every elevation and writes the pngs, whether or
+  not anything changed.
 - **`supersample`** — render multiple, then box down. 2 is usually enough to kill the
   stair-stepping on shadow edges; 1 is a fast preview.
 - The pngs are plain images. Painting on them by hand works, until the next bake.

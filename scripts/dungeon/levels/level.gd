@@ -9,11 +9,9 @@ class_name Level
 @onready var tiles =    $Layers/Floor
 
 func _ready():
-	if lighting.load_bake(self): return
-
-	# Only the editor can write the bake back out; in game a stale one is all there is.
-	if Engine.is_editor_hint() and lighting.auto_bake: await lighting.bake(self)
-	else: push_warning("Level: lighting bake is missing or older than the tiles")
+	# Missing, or older than the tiles: shoot a fresh one now. Whether it can be kept afterwards
+	# is a separate question - only an editor build can write to res://.
+	if not lighting.load_bake(self): await lighting.bake(self)
 
 func rebake_lighting() -> void:
 	await $LightBake.bake(self, true)

@@ -14,8 +14,6 @@ const SHADOW_ONLY = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 @export_range(1, 4) var supersample: int = 2
 ## Bake with this instead of the level's own environment.
 @export var bake_environment: Environment
-## Re-render whenever the tiles stop matching the bake on disk.
-@export var auto_bake: bool = true
 
 # The bake once loaded: one image per elevation, plus the projection that addresses them.
 var slices: Dictionary = {}
@@ -27,7 +25,13 @@ var stamp: int = 0
 # Pull the bake off disk. False when there is none, or it no longer matches the tiles.
 func load_bake(level: Level) -> bool:
 	var dir = BAKE_DIR % _name(level)
-	var manifest = JSON.parse_string(FileAccess.get_file_as_string("%s/%s" % [dir, MANIFEST]))
+	var path = "%s/%s" % [dir, MANIFEST]
+
+	# Checked rather than just read: reading a file that is not there logs an error of its own,
+	# and a missing bake is an ordinary thing that the caller handles by shooting a new one.
+	if not FileAccess.file_exists(path): return false
+
+	var manifest = JSON.parse_string(FileAccess.get_file_as_string(path))
 	if manifest == null: return false
 
 	slices.clear()
@@ -51,7 +55,11 @@ func light_at(world: Vector3, elevation: int) -> Color:
 	if image == null: return Color.WHITE
 
 	var px = LightBakeTools.to_pixel(world, rect)
-	return image.get_pixelv(px.clamp(Vector2i.ZERO, image.get_size() - Vector2i.ONE))
+	var light = image.get_pixelv(px.clamp(Vector2i.ZERO, image.get_size() - Vector2i.ONE))
+
+	# Alpha is coverage, not light - handing it back would fade the sprite instead of tinting it.
+	# Off the tiles entirely there is nothing to go on, so tint nothing.
+	return Color(light.r, light.g, light.b) if light.a > 0.0 else Color.WHITE
 
 # === BAKE ===
 
@@ -96,12 +104,12 @@ func _viewport(view: Dictionary, level: Level) -> SubViewport:
 	# A world of its own, set before anything is added so the slices never touch the real level.
 	# It has to be assigned outright: use_own_world_3d parks it where the world_3d getter cannot see it.
 	var world = World3D.new()
-	world.environment = bake_environment if bake_environment != null \
-		else LightBakeTools.environment(level)
+	world.environment = _environment(level)
 
 	var viewport = SubViewport.new()
 	viewport.size = view.px * supersample
 	viewport.world_3d = world
+	viewport.transparent_bg = true
 	viewport.msaa_3d = Viewport.MSAA_4X
 	viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(viewport, false, Node.INTERNAL_MODE_BACK)
@@ -126,19 +134,38 @@ func _viewport(view: Dictionary, level: Level) -> SubViewport:
 
 	return viewport
 
+func _environment(level: Level) -> Environment:
+	var source = bake_environment if bake_environment != null else LightBakeTools.environment(level)
+	if source == null: return null
+
+	var environment: Environment = source.duplicate()
+	environment.background_mode = Environment.BG_CLEAR_COLOR
+	return environment
+
 # One frame of the bake camera, brought back down to art resolution.
 func _shoot(viewport: SubViewport, px: Vector2i) -> Image:
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	await RenderingServer.frame_post_draw
 
 	var image = viewport.get_texture().get_image()
+	image.convert(Image.FORMAT_RGBA8)
+
+	# Bleed light out past the silhouette first. Resizing does not know about alpha, so without
+	# this the downsample mixes every edge with transparent black and outlines each tile in soot.
+	image.fix_alpha_edges()
 	if image.get_size() != px: image.resize(px.x, px.y, Image.INTERPOLATE_LANCZOS)
-	image.convert(Image.FORMAT_RGB8)
+	image.fix_alpha_edges()
+
 	return image
 
 # One png per elevation, plus the projection that maps world space onto them.
 func _save(level: Level) -> void:
 	var dir = BAKE_DIR % _name(level)
+
+	if not OS.has_feature("editor"):
+		push_warning("LightBake: baked into memory - an exported build cannot write %s" % dir)
+		return
+
 	DirAccess.make_dir_recursive_absolute(dir)
 
 	var names = {}
