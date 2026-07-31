@@ -1,148 +1,86 @@
-# Lighting — the bake
+# Lighting — the proxy pass
 
-Light is **photographed, not lit**. Nothing in the shipped level is a light source.
+Nothing you see is lit. Light is rendered every frame off **white stand-ins** for the tiles,
+into a viewport the size of the screen, and the sprites multiply themselves by the result.
 
-`LightBake` turns every tile plain white, then shoots the level once per elevation from
-the game's exact camera. White albedo means the picture that comes back *is* the light —
-sun, shadow, ambient, sky tint, AO — with no tile colour mixed into it. Multiply a sprite
-by the pixel it lands on and the sprite is lit.
-
-**Two files and one node:**
+**One node:**
 
 | Part | Where |
 |---|---|
-| The node | `LightBake` on `Level/LightBake` in `scenes/dungeon/levels/level.tscn` |
-| The bake | `data/lightdata/<level>/elev_<n>.png` + `bake.json` |
-| Lights | Any `Light3D` **under `LightBake`** — `SunLight` is the only one so far |
+| The node | `Lighting` on `Level/Lighting` in `scenes/dungeon/levels/level.tscn` |
+| Lights | Any `Light3D` under it — `SunLight` is the only one so far |
 
 ---
 
-## 1. How a bake happens
+## 1. How it works
 
-1. Every cell in the stack is merged into **one white mesh per elevation**
-   (`LightBakeTools.slice_meshes`). Elevation is the GridMap **y**, so all three layers at
-   y=0 land in the same slice.
-2. A `SubViewport` gets its own `World3D`, the level's `Environment`, copies of every light
-   under `LightBake`, and an orthogonal camera at `IsoView.camera_basis()` framing the whole
-   level at one texel per art pixel.
-3. For each elevation: that slice renders normally, **every other slice flips to
-   `SHADOWS_ONLY`**. So a wall two floors up still lays its shadow on this floor without ever
-   appearing in this floor's picture.
-4. The frame is grabbed, boxed down from `supersample`, and saved as a png.
+1. On load every cell in the stack is merged into one white `MeshInstance3D`, put inside a
+   `SubViewport` that holds **its own `World3D`** — so the stand-ins exist nowhere the game
+   can see them, and the game's tiles are nowhere the pass can see.
+2. That world takes the level's **same `Environment` resource**, so ambient, sky tint and the
+   rest reach the light exactly as they reach the game. The environment is part of the
+   lighting.
+3. Copies of every `Light3D` under `Lighting` go in with it.
+4. The pass camera copies the game camera every frame — transform, projection, size, near, far.
+5. `Lighting.texture` is the result: white where lit, dark in shadow.
 
-The viewport is transparent and the bake environment's background is forced to clear colour,
-so **nothing but tiles reaches the film** — no sky, no horizon. The sky is still switched on
-as an ambient and reflection source, and the renderer keeps it for those even when it is never
-drawn, so shadows are filled exactly as they are in game.
+> ⚠️ **The separate world is load-bearing, not tidiness.** Godot creates one light instance
+> per light *per world*, and `_render_scene` writes each camera's shadow fit onto that
+> instance once per viewport render. Two cameras sharing a world therefore overwrite each
+> other's shadow setup every frame: shadows flicker in both views and the pass gets none.
 
-Alpha is **coverage, not light**: 1 where the bake saw a tile, 0 where it saw nothing. The
-light itself is bled a few pixels past every silhouette (`fix_alpha_edges`) before the
-downsample, because `Image.resize` knows nothing about alpha and would otherwise average
-every edge with transparent black and outline each tile in soot. So a sprite that overhangs
-its mesh by a pixel still samples real light.
+Lights must live **under `Lighting`** to be copied in. That is the price of the separate world.
 
-A bake happens when the `Bake lighting` button is pressed, or when `Level._ready` finds no
-bake on disk, or one whose tile stamp no longer matches the tiles. The stamp is the same
-fingerprint the old GI bake used.
+The pass is `transparent_bg`, which stops the sky being *drawn* into it while the sky still
+feeds ambient and reflections. The background lands opaque black rather than transparent,
+because Godot leaves `clear_color` at its default in the sky branch — harmless, since sprites
+carry their own coverage.
 
-**Rendering works anywhere; saving does not.** `res://` is only a real directory in an editor
-build — an export packs it read-only. So a shipped game missing its bake still lights itself
-correctly, it just re-shoots into memory on every launch and warns. Ship the pngs.
+> ⚠️ **`Level/Camera3D.far` sets the shadow range.** For an orthogonal camera Godot ignores
+> `directional_shadow_max_distance` outright and fits directional shadows across the camera's
+> whole `near`..`far`. At the default `far` of 4000 the shadow map is stretched over 4000
+> units, which is far too little depth precision: shadows come out smeared and crawl. It is
+> set to **600**, which just clears the level.
 
-> The bake is offline, so **quality is free**. Nothing about it runs in game. Point
-> `bake_environment` at an `Environment` with SSIL, high SSAO, and a big shadow size and
-> the level pays nothing for it at runtime.
+## 2. Using it
 
-## 2. What comes out
-
-`bake.json` carries the projection that addresses the pngs:
-
-```json
-{ "stamp": 1234, "rect": [-334.9, -161.2, 792.0, 468.5], "slices": {"0": "elev_0.png"} }
-```
-
-`rect` is the level's footprint **in camera space, in world units** — position is the
-bottom-left corner, size is the extent. Image rows run top-down, so:
-
-```
-view = IsoView.camera_basis().inverse() * world_position
-px.x = (view.x - rect.position.x) / IsoView.WORLD_PER_PX
-px.y = (rect.end.y - view.y)      / IsoView.WORLD_PER_PX
-```
-
-That is `LightBakeTools.to_pixel`. The depth component is thrown away — which is exactly
-why there is one image per elevation, since two elevations land on the same pixel.
-
-Set the pngs to **Lossless, no mipmaps, Nearest** in the import dock, and leave the alpha
-channel alone. Anything else softens the light across pixel boundaries and shows up as
-fringing on the sprites.
-
-## 3. Using it
-
-**Tiles** — sample by world position, not `SCREEN_UV`, so the bake survives a panning
-camera:
+Both passes share a camera, so a sprite reads its own pixel of the light with `SCREEN_UV` —
+no projection maths, and it survives a panning camera for free:
 
 ```glsl
 shader_type spatial;
 render_mode unshaded;
 
 uniform sampler2D light : filter_nearest;
-uniform vec4 light_rect;   // rect from bake.json
-uniform mat3 to_view;      // IsoView.camera_basis().inverse()
 
 void fragment() {
-    vec3 v = to_view * (INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz;
-    vec2 uv = vec2((v.x - light_rect.x) / light_rect.z,
-             1.0 - (v.y - light_rect.y) / light_rect.w);
-    ALBEDO = texture(TEXTURE, UV).rgb * texture(light, uv).rgb;
+    ALBEDO = texture(TEXTURE, UV).rgb * texture(light, SCREEN_UV).rgb;
 }
 ```
 
-Each elevation's sprites get that elevation's slice. Folding the slices into one
-`Texture2DArray` indexed by elevation collapses this to a single uniform.
+Bind it once from `Lighting.texture`.
 
-**The player and anything else that moves** — the bake never saw them. `LightBake.light_at`
-reads one pixel off the CPU-side copy:
+**Anything that moves works the same way**, as long as it has a stand-in inside the pass. A
+capsule at the player both lights the player's sprite and casts the player's shadow across the
+level, because it is in the pass like everything else. There is no separate path for dynamic
+objects.
 
-```gdscript
-sprite.modulate = light_bake.light_at(global_position, elevation)
-```
+**The keyhole** is a `discard` on the stand-in mesh. Do it in the shadow pass as well as the
+colour pass and a hidden wall stops casting as well as stops drawing, so whatever the keyhole
+reveals is lit correctly with no extra work. Visibility is resolved fresh every frame, which
+is the whole reason this is not baked.
 
-Cheap enough to run every frame. It darkens the character in shadow and warms them in a
-torch pool, but it is a single flat tint: it cannot light their head differently from their
-feet, and they still cast no shadow. See §5.
+## 3. Cost
 
-## 4. What the bake cannot do
+The level is ~313 cells, about 2,100 triangles, and the pass is 480×270 — 129,600 pixels.
+Rendering it twice a frame is not measurable. The only part not limited by the camera frustum
+is the directional shadow map, since off-screen geometry still casts into view — and its range
+comes from `Camera3D.far`, as above.
 
-| | |
-|---|---|
-| Moving lights, flicker, spells | Not in the bake at all |
-| The player's own shadow | Not in the bake at all |
-| Doors, destructibles | Bake goes stale — the stamp catches it, but only at edit time |
-| AO between elevations | Screen-space AO only sees the slice being shot, so it stops at the slice boundary. Real sun shadows do cross elevations |
-| Values above 1.0 | Clipped. Keep light energy at or under 1 or bright pools flatten out |
+Shadow atlas size is worth lowering from the default: chunky shadow edges suit 480×270, and a
+4096² atlas is 16.7M depth samples against 129,600 colour pixels.
 
-## 5. The dynamic pass, when the bake is not enough
+## 4. Editor aids
 
-The bake covers everything static. The fix for the rest is a **second, tiny render** — the
-same white geometry, at 480×270, holding only what moves:
-
-- **Shadow mask** — the sun plus an invisible capsule proxy at the player, static geometry
-  receiving but not casting. Comes back white with a dark blob where the player's shadow
-  falls. Multiply it in.
-- **Dynamic add** — moving point lights only, no sun, no ambient. Add it in.
-
-`final = albedo * baked * shadow_mask + dynamic_add`
-
-Both are untextured renders of a handful of surfaces at a postage-stamp resolution, so the
-cost is nothing. The player's capsule proxy also means the player is *properly* lit by the
-moving lights rather than flat-tinted: sample the add pass at `SCREEN_UV` in the player's
-shader. None of this exists yet — `LightBake` is the static half.
-
-## 6. Editor aids
-
-- **Bake lighting** on `Level` — re-shoots every elevation and writes the pngs, whether or
-  not anything changed.
-- **`supersample`** — render multiple, then box down. 2 is usually enough to kill the
-  stair-stepping on shadow edges; 1 is a fast preview.
-- The pngs are plain images. Painting on them by hand works, until the next bake.
+- **`debug`** on `Lighting` — draws the light pass over the level instead of the game, which
+  is the only way to see what the pass actually contains.
